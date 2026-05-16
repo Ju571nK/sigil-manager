@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+# Opt into Node 24 for all JavaScript actions ahead of the 2026-06-02
+# deadline that forces this default. Suppresses Node 20 deprecation
+# warnings on actions/checkout, actions/setup-go, actions/setup-node,
+# and golangci-lint-action.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   go:
     name: Go (test + lint + build)
