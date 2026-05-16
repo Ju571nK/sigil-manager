@@ -54,10 +54,11 @@ sigil-manager/
 │   ├── api/
 │   │   ├── handlers.go                  # HTTP handlers (health for now)
 │   │   └── handlers_test.go
+│   ├── httputil/
+│   │   ├── response.go                  # JSON response helper (leaf pkg, no cycles)
+│   │   └── response_test.go
 │   └── server/
 │       ├── server.go                    # http.Server setup + chi router
-│       ├── response.go                  # JSON response helper
-│       ├── response_test.go
 │       └── spa.go                       # embed.FS for production SPA
 ├── web/
 │   ├── package.json
@@ -356,19 +357,25 @@ git commit -m "Add minimal Go HTTP server with chi and /api/health endpoint"
 
 ---
 
-## Task 3: JSON response helper + extracted logging middleware
+## Task 3: JSON response helper in a leaf `httputil` package
 
 **Files:**
-- Create: `internal/server/response.go`
-- Create: `internal/server/response_test.go`
+- Create: `internal/httputil/response.go`
+- Create: `internal/httputil/response_test.go`
 - Modify: `internal/api/handlers.go`
+
+> **Why a separate `httputil` package, not `server`:** `internal/server`
+> already imports `internal/api` (to wire up handlers in `NewRouter`). If
+> `internal/api` then imported `internal/server` for `WriteJSON`, that's
+> an import cycle. `httputil` is a leaf package with no internal deps —
+> safe for any handler in `internal/api` (and any future package) to import.
 
 - [ ] **Step 1: Write the failing test for `WriteJSON`**
 
-Write `internal/server/response_test.go`:
+Write `internal/httputil/response_test.go`:
 
 ```go
-package server
+package httputil
 
 import (
 	"encoding/json"
@@ -398,17 +405,17 @@ func TestWriteJSON_EncodesPayloadAndSetsHeaders(t *testing.T) {
 - [ ] **Step 2: Run the test, verify it fails**
 
 ```bash
-go test ./internal/server/... -v
+go test ./internal/httputil/... -v
 ```
 
 Expected: FAIL — `undefined: WriteJSON`.
 
 - [ ] **Step 3: Implement `WriteJSON`**
 
-Write `internal/server/response.go`:
+Write `internal/httputil/response.go`:
 
 ```go
-package server
+package httputil
 
 import (
 	"encoding/json"
@@ -428,12 +435,12 @@ func WriteJSON(w http.ResponseWriter, status int, payload any) {
 - [ ] **Step 4: Verify the test passes**
 
 ```bash
-go test ./internal/server/... -v
+go test ./internal/httputil/... -v
 ```
 
 Expected: `PASS: TestWriteJSON_EncodesPayloadAndSetsHeaders`.
 
-- [ ] **Step 5: Refactor `HealthHandler` to use `WriteJSON`**
+- [ ] **Step 5: Refactor `HealthHandler` to use `httputil.WriteJSON`**
 
 Replace the body of `internal/api/handlers.go` with:
 
@@ -444,7 +451,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Ju571nK/sigil-manager/internal/server"
+	"github.com/Ju571nK/sigil-manager/internal/httputil"
 )
 
 var Version = "dev"
@@ -456,7 +463,7 @@ type healthResponse struct {
 }
 
 func HealthHandler(w http.ResponseWriter, r *http.Request) {
-	server.WriteJSON(w, http.StatusOK, healthResponse{
+	httputil.WriteJSON(w, http.StatusOK, healthResponse{
 		Status:    "ok",
 		Version:   Version,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
@@ -475,7 +482,7 @@ Expected: all tests pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add internal/server/response.go internal/server/response_test.go internal/api/handlers.go
+git add internal/httputil/response.go internal/httputil/response_test.go internal/api/handlers.go
 git commit -m "Extract WriteJSON helper and use it from HealthHandler"
 ```
 
