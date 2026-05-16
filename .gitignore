@@ -29,3 +29,7 @@ build-errors.log
 
 # TanStack Router generated
 web/src/routeTree.gen.ts
+
+# SPA dist is copied here by `make build`. Only the placeholder index.html is tracked.
+internal/server/dist/*
+!internal/server/dist/index.html

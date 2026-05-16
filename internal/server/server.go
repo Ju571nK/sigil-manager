@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/Ju571nK/sigil-manager/internal/api"
@@ -18,6 +19,12 @@ func NewRouter() http.Handler {
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/health", api.HealthHandler)
 	})
+
+	spa, err := spaHandler()
+	if err != nil {
+		log.Fatalf("failed to mount SPA: %v", err)
+	}
+	r.Handle("/*", spa)
 
 	return r
 }
