@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { apiFetch } from './lib/api';
+import { apiFetch } from '@/lib/api';
+import { Button } from '@/components/ui/button';
 
 interface Health {
   status: string;
@@ -11,16 +12,26 @@ export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const probe = () => {
+    setError(null);
+    setHealth(null);
     apiFetch<Health>('/api/health')
       .then(setHealth)
       .catch((e: Error) => setError(e.message));
-  }, []);
+  };
+
+  useEffect(() => { probe(); }, []);
 
   return (
     <main className="font-sans p-8 text-text-body bg-bg-page min-h-screen">
       <h1 className="text-2xl font-semibold text-text-primary">sigil-manager</h1>
       <p className="text-text-muted mt-1">Scaffolded. API probe:</p>
+      <div className="mt-4 flex gap-2">
+        <Button onClick={probe}>Probe again</Button>
+        <Button variant="secondary" onClick={() => setHealth(null)}>
+          Clear
+        </Button>
+      </div>
       {error && <pre className="mt-4 text-sev-critical">{error}</pre>}
       {health && (
         <pre className="mt-4 p-3 bg-bg-elevated border border-border rounded font-mono text-sm">
