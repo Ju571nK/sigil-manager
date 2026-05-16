@@ -9,3 +9,20 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# Go
+/sigil-manager
+/dist/
+*.test
+coverage.out
+coverage.html
+
+# Node / Vite
+web/node_modules/
+web/dist/
+web/.vite/
+web/coverage/
+
+# Air (Go hot reload)
+tmp/
+build-errors.log
