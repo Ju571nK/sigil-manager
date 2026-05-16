@@ -880,35 +880,22 @@ shadcn v4 with Tailwind v4 needs a manual `components.json`. Write `web/componen
 
 - [ ] **Step 3: Configure path alias `@`**
 
-Edit `web/tsconfig.json` and add the `paths` block under `compilerOptions`. The file likely looks like:
+Vite 8 splits TypeScript configuration into three files:
+- `web/tsconfig.json` — root references file (don't edit)
+- `web/tsconfig.app.json` — settings for app code (edit this one)
+- `web/tsconfig.node.json` — settings for `vite.config.ts` (don't edit)
+
+Edit `web/tsconfig.app.json` and add these entries under `compilerOptions`:
 
 ```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "useDefineForClassFields": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] }
-  },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
-}
+"baseUrl": ".",
+"paths": { "@/*": ["./src/*"] },
+"ignoreDeprecations": "6.0"
 ```
 
-Add the `baseUrl` and `paths` entries shown above if missing. Make sure the JSON stays valid.
+The `ignoreDeprecations: "6.0"` is needed because TypeScript 6 deprecated standalone `baseUrl`. The flag is the official migration accommodation. Without it, the build emits a warning that fails strict CI configs.
+
+Make sure the JSON stays valid (commas between entries).
 
 Also edit `web/vite.config.ts` to resolve `@`:
 
@@ -1053,7 +1040,7 @@ Run Go + Vite. Visit `http://localhost:5173`. Expected: two buttons appear, the 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add web/components.json web/tsconfig.json web/vite.config.ts web/src/lib/utils.ts web/src/components/ui/button.tsx web/src/App.tsx web/package.json web/package-lock.json
+git add web/components.json web/tsconfig.app.json web/vite.config.ts web/src/lib/utils.ts web/src/components/ui/button.tsx web/src/App.tsx web/package.json web/package-lock.json
 git commit -m "Add shadcn/ui foundation (cn util, Button) and path alias @"
 ```
 
