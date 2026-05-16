@@ -4,11 +4,13 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/Ju571nK/sigil-manager/internal/api"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/Ju571nK/sigil-manager/internal/api"
 )
 
+// NewRouter constructs and returns the chi router with all middleware and routes wired up.
 func NewRouter() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
