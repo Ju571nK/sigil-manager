@@ -26,3 +26,6 @@ web/coverage/
 # Air (Go hot reload)
 tmp/
 build-errors.log
+
+# TanStack Router generated
+web/src/routeTree.gen.ts
