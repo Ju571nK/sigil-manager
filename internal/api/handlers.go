@@ -7,6 +7,7 @@ import (
 	"github.com/Ju571nK/sigil-manager/internal/httputil"
 )
 
+// Version is the build version string, injected at link time via -ldflags.
 var Version = "dev"
 
 type healthResponse struct {
@@ -15,6 +16,7 @@ type healthResponse struct {
 	Timestamp string `json:"timestamp"`
 }
 
+// HealthHandler returns a JSON health-check response with status, version, and timestamp.
 func HealthHandler(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, healthResponse{
 		Status:    "ok",

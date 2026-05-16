@@ -1,0 +1,36 @@
+version: "2"
+
+run:
+  timeout: 3m
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Ju571nK/sigil-manager
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - revive
+    - misspell
+  settings:
+    revive:
+      rules:
+        - name: exported
+        - name: var-naming
+        - name: indent-error-flow
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+    paths:
+      - web

@@ -1,7 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
+import { createFileRoute } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
+import { apiFetch } from '@/lib/api';
 
 interface Health {
   status: string;

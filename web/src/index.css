@@ -1,7 +1,9 @@
-@import 'tailwindcss';
-@import './styles/tokens.css';
+@import "tailwindcss";
+@import "./styles/tokens.css";
 
-html, body, #root {
+html,
+body,
+#root {
   background: var(--color-bg-page);
   color: var(--color-text-body);
   font-family: var(--font-sans);

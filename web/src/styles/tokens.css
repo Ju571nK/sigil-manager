@@ -30,6 +30,6 @@
   --color-accent: #a78bfa;
 
   /* Typography */
-  --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  --font-sans: "Inter", -apple-system, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
 }
