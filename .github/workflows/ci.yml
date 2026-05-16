@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  go:
+    name: Go (test + lint + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Go test
+        run: go test ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.4.0
+
+      - name: Build web (required for embed.FS)
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+          rm -rf ../internal/server/dist
+          cp -r dist ../internal/server/dist
+
+      - name: Go build
+        run: go build -o sigil-manager ./cmd/sigil-manager
+
+  web:
+    name: Web (test + lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm test -- --run
+
+      - run: npm run build
