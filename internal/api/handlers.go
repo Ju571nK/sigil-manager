@@ -1,12 +1,12 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/Ju571nK/sigil-manager/internal/httputil"
 )
 
-// Version is set at build time via -ldflags. Defaults to "dev" for local builds.
 var Version = "dev"
 
 type healthResponse struct {
@@ -16,9 +16,7 @@ type healthResponse struct {
 }
 
 func HealthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(healthResponse{
+	httputil.WriteJSON(w, http.StatusOK, healthResponse{
 		Status:    "ok",
 		Version:   Version,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
