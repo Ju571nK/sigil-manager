@@ -1,0 +1,35 @@
+/*
+ * Design tokens from docs/superpowers/specs/2026-05-16-ui-ux-design.md §6.
+ * Severity hex values are binding semantics — do not repurpose them.
+ */
+@theme {
+  /* Backgrounds */
+  --color-bg-page: #0a0a0c;
+  --color-bg-surface: #0d0d10;
+  --color-bg-elevated: #18181b;
+  --color-border-subtle: #1f1f23;
+  --color-border: #27272a;
+
+  /* Text */
+  --color-text-primary: #fafafa;
+  --color-text-body: #e4e4e7;
+  --color-text-muted: #a1a1aa;
+  --color-text-subtle: #71717a;
+
+  /* Severity (binding semantic) */
+  --color-sev-critical: #ef4444;
+  --color-sev-high: #f97316;
+  --color-sev-medium: #eab308;
+  --color-sev-low: #3b82f6;
+  --color-sev-info: #71717a;
+
+  /* Status / accent */
+  --color-status-healthy: #22c55e;
+  --color-status-degraded: #f59e0b;
+  --color-status-down: #ef4444;
+  --color-accent: #a78bfa;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+}

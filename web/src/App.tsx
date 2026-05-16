@@ -18,12 +18,16 @@ export default function App() {
   }, []);
 
   return (
-    <main style={{ fontFamily: 'system-ui', padding: '2rem', color: '#fafafa', background: '#0a0a0c', minHeight: '100vh' }}>
-      <h1>sigil-manager</h1>
-      <p>Scaffolded. API probe:</p>
-      {error && <pre style={{ color: '#ef4444' }}>{error}</pre>}
-      {health && <pre>{JSON.stringify(health, null, 2)}</pre>}
-      {!error && !health && <p>Loading…</p>}
+    <main className="font-sans p-8 text-text-body bg-bg-page min-h-screen">
+      <h1 className="text-2xl font-semibold text-text-primary">sigil-manager</h1>
+      <p className="text-text-muted mt-1">Scaffolded. API probe:</p>
+      {error && <pre className="mt-4 text-sev-critical">{error}</pre>}
+      {health && (
+        <pre className="mt-4 p-3 bg-bg-elevated border border-border rounded font-mono text-sm">
+          {JSON.stringify(health, null, 2)}
+        </pre>
+      )}
+      {!error && !health && <p className="mt-4 text-text-subtle">Loading…</p>}
     </main>
   );
 }
