@@ -576,9 +576,15 @@ export default defineConfig({
 Write `web/src/lib/api.ts`:
 
 ```ts
+// Vite 8's TS 6 template enables erasableSyntaxOnly, which forbids parameter
+// property shorthand (e.g. `constructor(public status: number)`). Use
+// explicit declaration + assignment.
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  status: number;
+
+  constructor(status: number, message: string) {
     super(message);
+    this.status = status;
     this.name = 'ApiError';
   }
 }
