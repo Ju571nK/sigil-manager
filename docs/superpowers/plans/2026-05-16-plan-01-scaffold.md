@@ -1481,7 +1481,11 @@ Edit `web/package.json` and add this `scripts` block (replace the existing `scri
 }
 ```
 
-Add the `test` config to `web/vite.config.ts` (inside the `defineConfig` object, after the `build` block):
+Update `web/vite.config.ts` to use Vitest v4's typed config. Change the
+import line from `import { defineConfig } from 'vite';` to
+`import { defineConfig } from 'vitest/config';` — this widens the
+returned config type to include `test`. Then add this block inside
+`defineConfig({ ... })` after `build`:
 
 ```ts
   test: {
@@ -1491,7 +1495,9 @@ Add the `test` config to `web/vite.config.ts` (inside the `defineConfig` object,
   },
 ```
 
-(TypeScript may complain about `test` not existing on the Vite config type; add this triple-slash directive at the top of `vite.config.ts`: `/// <reference types="vitest" />`.)
+(`vitest/config` re-exports Vite's `defineConfig` with the `test` field
+typed correctly. Older Vitest releases needed a `/// <reference types="vitest" />`
+directive; v4+ does not.)
 
 Create `web/tests/setup.ts`:
 
