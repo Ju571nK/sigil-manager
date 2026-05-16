@@ -1,0 +1,11 @@
+# Brainstorm session content (local-only by design)
+.superpowers/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local env / secrets
+.env
+.env.local
+.env.*.local
