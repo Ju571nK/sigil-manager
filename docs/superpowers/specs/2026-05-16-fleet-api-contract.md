@@ -713,3 +713,71 @@ consumer side knows what to compensate for, and so follow-up issues against
 
 These are not blocking Plan 02 — `sigil-manager` will ship against the
 contract as locked, then file these as Phase 3b.4.1 candidates.
+
+## 14. Post-lock additive schema notes
+
+The producer has shipped two phases since this contract was locked.
+Both are **wire-additive** — no existing fields renamed or removed, no
+endpoint behaviour changed — so this v1.0 contract still describes the
+correct shape for fields it covers. Consumer-side display code (when
+implemented) should be ready for the additional enum values below.
+
+### 14.1 Phase 3b.4 — fleet aggregation API (shipped 2026-05-17, sigil main `d495ea3`)
+
+This is the read API this contract was built against. Producer side
+shipped exactly the 9 endpoints, scopes, and schemas locked in §4-§7.
+No consumer-visible deltas vs this contract.
+
+### 14.2 Phase 3b.6 — application-form AI agent coverage (shipped 2026-05-17, sigil main `d495ea3`)
+
+Two new parsers (Claude Desktop, Continue.dev) emit through the same
+`Evidence::AiGuardRiskAssessed` path documented in §5. Wire additions:
+
+**New `tool` enum values** (string field inside `evidence`, snake_case):
+
+| Wire string | Producer enum | Description |
+|---|---|---|
+| `"claude_code"` | `AiTool::ClaudeCode` | (already in contract — CLI form, Phase 3b.1) |
+| `"codex"` | `AiTool::Codex` | (already in contract — CLI form, Phase 3b.1) |
+| `"claude_desktop"` | `AiTool::ClaudeDesktop` | **NEW (3b.6)** — Anthropic.app desktop config |
+| `"continue_dev"` | `AiTool::ContinueDev` | **NEW (3b.6)** — Continue.dev VSCode/JetBrains extension |
+
+**New `scope.kind` value**: in addition to the existing `"user_global"` and
+`"project"` shapes, application-form parsers emit:
+
+```json
+{
+  "scope": {
+    "kind": "application",
+    "app": "claude_desktop"
+  }
+}
+```
+
+The `app` string is a stable, snake_case identifier matching the parser.
+For 3b.6 it's `"claude_desktop"` for Claude Desktop or `"continue"` for
+Continue.dev (note the latter drops the `_dev` that the tool enum carries
+— this is intentional and reflects the vendor's own product name).
+
+**Reason variants**: no new variants — 3b.6 reuses `no_sandbox`,
+`mcp_server_remote`, `destructive_in_inline_command`,
+`destructive_in_hook_script`, `external_script_unscanned` from Phase 3b.1.
+A new `executor` string value `"mcp_command"` (in addition to the
+existing `"host_shell"`) appears in `NoSandbox` reasons emitted by
+app-form parsers, and `hook_event` may now take the values
+`"mcp_command"`, `"slash_command"`, or `"custom_command"` from the
+Continue.dev parser.
+
+**Consumer impact when sigil-manager builds the fleet UI:**
+- Render new tool strings with appropriate icons / labels — recommended:
+  Claude Desktop = Anthropic icon variant, Continue.dev = Continue logo,
+  fall back to generic AI badge for unknown values.
+- Handle `scope.kind === "application"` alongside `"user_global"` and
+  `"project"` in any scope-aware grouping or filter UI.
+- No alerts-definition change — `ai_guard_risk_assessed` is already in
+  `/v1/meta.alerts_definition_default.evidence_kinds` and continues to
+  cover both CLI- and application-form emissions.
+
+**Reference:** producer spec at
+`Ju571nK/sigil:docs/superpowers/specs/2026-05-17-phase-3b6-app-form-coverage-design.html`
+(local-only — gitignored on producer side).
