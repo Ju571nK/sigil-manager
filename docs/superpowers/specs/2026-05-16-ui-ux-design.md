@@ -1,10 +1,12 @@
 # sigil-manager UI/UX Design Spec
 
-- **Status**: Brainstorm complete · awaiting implementation plan
-- **Date**: 2026-05-16
+- **Status**: Brainstorm complete · synced to fleet API contract v1.0 (2026-05-18) · Plan 02 in flight
+- **Date**: 2026-05-16 (initial) · 2026-05-18 (sync with contract F7 / F13 / §14.5)
 - **Owner**: Justin Kwon
 - **Source**: Brainstorming session 2026-05-16 (Visual Companion + terminal)
 - **Implements**: Strategy decisions in `sigil-strategy.md`
+- **Consumed by**: `docs/superpowers/plans/2026-05-18-plan-02-foundation-and-alerts-queue.md`
+- **Wire contract**: `docs/superpowers/specs/2026-05-16-fleet-api-contract.md` (v1.0)
 
 ## 1. Context
 
@@ -87,9 +89,9 @@ If users find the slide-over too cramped for deep investigation, a full-page `/a
 
 Three tabs serve the dashboards promised by the strategy doc:
 
-- **Risk** (default): host list sorted by AI Guard risk score. Each row shows risk bar (color-coded to severity scale), hostname, score (0-100), open alert count.
+- **Risk** (default): host list sorted by AI Guard risk score. Each row shows risk bar (color-coded to severity scale), hostname, score (0.0–10.0, CVSS-style — see fleet API contract F7), open alert count.
 - **Events**: fleet-wide event timeline. Reverse-chronological list of events from all hosts. Filter by event type, host, time range.
-- **Compliance**: per-host policy compliance. Each row: hostname, compliance score, count of failing policies, last policy update.
+- **Compliance**: per-host policy compliance. Each row: hostname, **compliance status pill** (✅ In sync / ⚠️ Drift / ❌ Expired / ❌ Failing signature — derived client-side from raw signals per fleet API contract F13/§5.6, no server-side `compliance_score` field), count of failing policies (24h signature failures), last policy reload time.
 
 Clicking any hostname → `/hosts/:hostname`.
 
@@ -98,7 +100,7 @@ Clicking any hostname → `/hosts/:hostname`.
 Drilled-in view of one host.
 
 **Layout**:
-- Breadcrumb: `← Fleet / host-a3-prod-002` + risk score badge in top-right.
+- Breadcrumb: `← Fleet / alice-mbp` (hostname from latest `HostMetaSnapshot`, falls back to `host_id` short prefix if the host hasn't emitted one yet — per fleet API contract §14.5) + risk score badge in top-right (max bucket across tools; 0.0–10.0 scale per F7).
 - Metadata bar: env (prod/staging/dev), models active on host, agent version + connection status dot, last-seen timestamp.
 - Tabs: **Alerts** (default) · Events · Compliance.
   - Alerts tab: same queue UI as `/alerts` but filtered to this host.
