@@ -67,7 +67,7 @@ producer-side decision letter so the lineage is auditable.
 | F7  | Score scale | **0.0–10.0** float (CVSS-style, matches `AiGuardRiskAssessed.score`). **Locked — UI/UX spec §5.2 to be updated** from "0-100" to "0-10". | producer §9 Q1 |
 | F8  | Streaming | Polling only in v1 (UI/UX §7.2 = 5s). SSE/WebSocket deferred (producer Out-of-scope §8 → 3b.4.1 or sigil-cloud). | producer §8 |
 | F9  | Versioning | Path version (`/v1/`). Additive non-breaking (new fields, new endpoints, new evidence variants). Breaking → `/v2/`, both run ≥1 minor cycle. | (producer §7.3) |
-| F10 | "Alerts" definition | Server has no first-class alert concept, but **`/v1/meta.alerts_definition_default` exports the producer's recommended set** so consumer + server agree on the default. Consumer may override client-side. `open_alert_count_24h` in `/v1/fleet/risk` is computed by the server against its own recommendation; if the consumer overrides, it recomputes locally from `/v1/events`. | producer §4.2 / §4.5 |
+| F10 | "Alerts" definition | Server has no first-class alert concept, but **`/v1/meta.alerts_definition_default` exports the producer's recommended set** so consumer + server agree on the default. Consumer may override client-side. **Note:** as of sigil-server `0dce160` (2026-05-17), `open_alert_count_24h` in `/v1/fleet/risk` is implemented as the trailing-24h `warn`-severity event sum and does **not** filter by `alerts_definition_default` — divergence from producer spec §4.5. Tracked in §13.1. | producer §4.2 / §4.5 |
 | F11 | Server-side index backing | **In-memory per-host `HostSummary` HashMap** (`parking_lot::RwLock`). Rebuilt from JSONL on server boot. `/v1/events` filters do an **on-demand reverse JSONL scan** (no event-level index in v1). MVP target: ≤1000 hosts × 7 days × 30k events/day. | **B**, **F** |
 | F12 | Index update timing | **Synchronous.** `POST /v1/events` ingest handler updates `HostSummary` inline before responding. No async indexer task in v1. | **H** |
 | F13 | Compliance representation | `/v1/fleet/compliance` exposes **raw signals only**: `last_applied_policy_version`, `server_current_policy_version`, `version_drift`, `policy_expired_active`, `last_policy_reload_ts`, `signature_failures_24h`. **No `compliance_score`** — the UI derives status from raw signals. | **I**, producer §9 Q2 |
@@ -195,7 +195,8 @@ client-side configuration. Two consequences flow from F10:
 - `status` — `healthy,stale,disconnected` (comma-list). Defaults: all.
 - `bucket` — `low,medium,high,critical` filter on **max** per-tool current
   bucket. Defaults: all.
-- `sort` — `last_seen|risk|host_id`. Default `last_seen`.
+- `sort` — `last_seen|risk|host_id`. Default `last_seen`. Unrecognised
+  values silently fall back to `last_seen` (not validated server-side in v1).
 
 **Status semantics** (computed against agent-side `event.ts`; producer chose
 not to use a separate server-received timestamp in v1 — see §13 gap on clock
@@ -365,8 +366,15 @@ breakdown is in `/v1/fleet/hosts/{host_id}.ai_guard.by_tool`.
 ```
 
 - `hostname: null` allowed (see §5.3).
-- `open_alert_count_24h` uses the producer's recommended alerts definition
-  (from `/v1/meta`). Consumer overrides recompute client-side.
+- `open_alert_count_24h` — **producer spec §4.5 says this is the count
+  matching `alerts_definition_default`. As of sigil-server commit `0dce160`
+  (2026-05-17), the actual implementation returns
+  `h.counts_24h.sum_warn()` — i.e., every `severity=warn` event in the
+  trailing 24h, regardless of whether it matches the alerts definition.**
+  Consumer should treat the field as a coarse "warn events in 24h"
+  indicator and recompute precise alert counts client-side from
+  `/v1/events` if the UI needs a tighter number. Tracked as a follow-up on
+  `Ju571nK/sigil` (see §13.1).
 - Hosts with no `AiGuardRiskAssessed` yet are omitted entirely (not returned
   with `null` score).
 
@@ -541,19 +549,23 @@ All errors:
 
 | Status | `code` | When |
 |---|---|---|
-| `400` | `invalid_query` | Bad cursor, unknown filter value, malformed timestamp, `limit=0`. |
+| `400` | `invalid_query` | Bad cursor (unparseable UUID for `/v1/events`), unknown filter value, malformed timestamp. |
 | `401` | `unauthorized` | Missing/wrong bearer (env var IS set). |
 | `404` | `not_found` | `{host_id}`/`{event_id}` not in set; OR read endpoints when `SIGIL_SERVER_READ_TOKEN` is unset (read API hidden). |
 | `429` | `rate_limited` | Reserved; not enforced in v1. |
 | `503` | `service_unavailable` | Boot rebuild in progress (per F15). Response includes `Retry-After: 5` header. |
 | `500` | `internal` | Producer bug. |
 
-### 6.2 `limit > 1000`
+### 6.2 Silent `limit` clamp
 
-Producer silently caps at 1000 (does not 400). `sigil-manager`'s
-`FleetClient` should always send `limit ≤ 1000` to keep client and server
-agreed on the page size returned. A `limit=5000` request that returns 1000
-rows is otherwise indistinguishable from a genuine 1000-row page.
+Producer **silently clamps `limit` to `[1, 1000]`** in both directions:
+`limit=0`, negative values, and `limit>1000` are all coerced — no `400`
+returned. Implementation: `clamp(1, 1000)` in every route's
+query-parser. `sigil-manager`'s `FleetClient` should always send a value
+inside the range so client and server agree on the page size. A
+`limit=5000` request that returns 1000 rows is otherwise indistinguishable
+from a genuine 1000-row page; similarly `limit=0` returning a non-empty
+page is silently rounded up to 1.
 
 ---
 
@@ -572,8 +584,13 @@ rows is otherwise indistinguishable from a genuine 1000-row page.
     walk does NOT hold the lock across requests. New hosts joining
     mid-walk may shift cursor positions.
 - **`next_cursor: null`** means no more pages.
-- **`limit=0`** → `400 invalid_query`.
-- **`limit>1000`** → silently capped to 1000 (see §6.2).
+- **`limit`** → silently clamped to `[1, 1000]` (see §6.2); no `400`.
+- **Stale cursor** (e.g., the `host_id` referenced by a `/v1/fleet/*`
+  cursor no longer appears in the current snapshot, or a `/v1/events`
+  cursor's UUID is older than the JSONL retention window) → server returns
+  an empty page with `next_cursor: null`. No `400`, no error. Consumer
+  detects this as "0 rows + null cursor" and either restarts the walk from
+  the top or treats the prior walk as complete.
 
 ---
 
@@ -701,9 +718,22 @@ consumer side knows what to compensate for, and so follow-up issues against
 | **Batch fetch** | Slide-over fetches per event. | Mitigation: aggressive client-side caching (LRU, 200 events). Acceptable for MVP analyst. |
 | **`open_event_counts_24h` definition** | Field name says "open" but server has no triage state — really means "events emitted in 24h". | Mitigation: in UI tooltip clarify it's a "raw count", not "outstanding alerts". |
 | **Alerts definition drift** | Server-computed `open_alert_count_24h` uses producer's recommendation; consumer overrides recompute. | Mitigation: UI labels server-side count differently from consumer-derived count when the override is non-default. |
+| **`open_alert_count_24h` spec/impl divergence** | Spec §4.5 says "events matching `alerts_definition_default`"; impl `0dce160` returns plain `sum_warn()`. | Mitigation: treat the field as "warn events in 24h", recompute precise alert counts client-side from `/v1/events`. Tracked as a follow-up issue (see §13.1). |
 
 ### 13.1 Suggested follow-up issues for `Ju571nK/sigil`
 
+- **`/v1/fleet/risk.open_alert_count_24h` should respect
+  `alerts_definition_default`.** Current impl (`0dce160`,
+  `crates/sigil-server/src/routes/fleet_risk.rs:116`) returns
+  `h.counts_24h.sum_warn()`, which is the trailing-24h warn-severity
+  event sum and includes every warn-emitting Evidence variant
+  (`WatcherDegraded`, `ChannelStall`, `SenderLagCritical`,
+  `HostIdFingerprintDrift`, `AgentDying`, etc.). Producer spec §4.5
+  states the field should be the count matching
+  `alerts_definition_default` (`ai_guard_risk_assessed` with bucket
+  high/critical, plus the 5 additional kinds listed in §4.2). The
+  divergence misleads SOC analysts: a host with 100 `WatcherDegraded`
+  events and zero actionable alerts will show `open_alert_count_24h: 100`.
 - Add `server_received_ts` to event ingest path; expose via `/v1/events`
   and use for `last_seen_ts` in fleet endpoints (codex #7, #21).
 - Add `/v1/observability/index` returning index lag, parse error count,
