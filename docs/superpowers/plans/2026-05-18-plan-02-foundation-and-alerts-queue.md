@@ -350,6 +350,15 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
     with `null` host_meta (host that never emitted snapshot).
   - Cursor pagination over events: `limit=10` returns 10 + cursor,
     walking to completion.
+  - **Wire-variant coverage** (per contract §14.5 aggregate checklist —
+    keeps Plan 02 rendering exercised against everything sigil has shipped
+    through 3b.6.2): at least one `ai_guard_risk_assessed` event for
+    **each** of the four current `tool` values (`claude_code`, `codex`,
+    `claude_desktop`, `continue_dev`) **and** at least one event each for
+    the three `scope.kind` shapes (`user_global`, `project` with a
+    non-empty `path`, `application` with `app` set). The four-tool × three-
+    scope matrix doesn't need full coverage, but the union of `tool` values
+    used and the union of `scope.kind` values used must each be complete.
 - [ ] **Step 2:** Implement `Mock` struct holding pre-built fixtures in
   memory. Fixtures live in `mock_fixtures.go` and `mock_fixtures_test.go`
   (split for readability if Mock grows).

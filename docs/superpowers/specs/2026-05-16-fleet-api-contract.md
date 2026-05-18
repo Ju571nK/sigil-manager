@@ -746,11 +746,14 @@ contract as locked, then file these as Phase 3b.4.1 candidates.
 
 ## 14. Post-lock additive schema notes
 
-The producer has shipped two phases since this contract was locked.
-Both are **wire-additive** — no existing fields renamed or removed, no
-endpoint behaviour changed — so this v1.0 contract still describes the
-correct shape for fields it covers. Consumer-side display code (when
-implemented) should be ready for the additional enum values below.
+The producer has shipped four phases since this contract was locked
+(3b.4 read API, 3b.6 application-form parsers, 3b.6.1 Continue
+per-repo discovery, 3b.6.2 Claude Code + Codex per-repo discovery).
+**Every one is wire-additive** — no existing fields renamed or removed,
+no endpoint behaviour changed — so this v1.0 contract still describes
+the correct shape for fields it covers. Consumer-side display code
+(when implemented) should be ready for the additional enum values and
+scope shapes recorded below.
 
 ### 14.1 Phase 3b.4 — fleet aggregation API (shipped 2026-05-17, sigil main `d495ea3`)
 
@@ -811,3 +814,111 @@ Continue.dev parser.
 **Reference:** producer spec at
 `Ju571nK/sigil:docs/superpowers/specs/2026-05-17-phase-3b6-app-form-coverage-design.html`
 (local-only — gitignored on producer side).
+
+### 14.3 Phase 3b.6.1 — Continue.dev per-repo discovery (shipped 2026-05-18, sigil main `f49b6de`)
+
+Adds operator-configurable per-repository discovery for Continue.dev:
+the operator lists workspace roots in the signed policy envelope's new
+`continue_workspaces: Vec<String>` field, the agent walks each root
+one level deep, and for every direct subdir containing
+`.continue/config.json` it spawns a `ContinueDevProjectParser`
+emitting `AiGuardRiskAssessed` events with:
+
+```json
+{
+  "evidence": {
+    "tool": "continue_dev",
+    "scope": { "kind": "project", "path": "/abs/path/to/repo" },
+    ...
+  }
+}
+```
+
+**Wire changes vs §14.2**: none new. `AiTool::ContinueDev` and
+`AiGuardScope::Project { path }` already existed; this phase just
+emits **more events with `tool=continue_dev` + `scope.kind=project`**.
+
+**Consumer impact:**
+- `/v1/fleet/hosts/{host_id}.ai_guard.by_tool.continue_dev` may now
+  hold a `scope.kind="project"` entry. The host-detail rendering MUST
+  display the `path` (UI can show the repo basename + tooltip with
+  full path).
+- `/v1/events` filtered by `evidence_kind=ai_guard_risk_assessed` will
+  return both user-global (from 3b.6) and per-project (from 3b.6.1)
+  variants intermixed; the SOC analyst should be able to distinguish
+  by `scope`.
+- The `current_risk.by_tool.continue_dev` block in `/v1/fleet/hosts`
+  list responses is overwritten per `(tool, scope)` key at the
+  producer side — meaning a user-global Continue.dev assessment and a
+  per-project one for the **same tool string** can stomp each other.
+  Plan 03 (host detail page) should fetch the host's full event
+  history when the operator drills into Continue.dev specifically, to
+  surface both scopes.
+
+**Reference:** producer spec at
+`Ju571nK/sigil:docs/superpowers/specs/2026-05-17-phase-3b6.1-continue-per-repo-discovery-design.html`
+and plan
+`Ju571nK/sigil:docs/superpowers/plans/2026-05-17-phase-3b6.1-continue-per-repo-discovery.html`.
+
+### 14.4 Phase 3b.6.2 — Claude Code + Codex per-repo discovery (in flight 2026-05-18, branch `feat/phase-3b6.2-claude-codex-per-repo-discovery`)
+
+Extends the 3b.6.1 pattern to two more tools. Two new policy envelope
+fields on the producer side — `claude_code_workspaces: Vec<String>`
+and `codex_workspaces: Vec<String>` — let operators point the agent
+at workspace roots for Claude Code (`<repo>/.claude/settings.json`,
+`settings.local.json`, `.claude/hooks/`) and Codex
+(`<repo>/.codex/config.toml`) respectively. For each marker-bearing
+subdir the agent emits `AiGuardRiskAssessed` events with:
+
+```json
+{
+  "evidence": {
+    "tool": "claude_code",   // or "codex"
+    "scope": { "kind": "project", "path": "/abs/path/to/repo" },
+    ...
+  }
+}
+```
+
+**Wire changes vs §14.3**: none new. **No new enum variants on either
+`AiTool` or `AiGuardScope`.** Just more `scope.kind="project"` events
+under tool strings that have existed since Phase 3b.1.
+
+**Consumer impact:**
+- Same `(tool, scope)` overwrite risk as §14.3 — a per-project
+  `claude_code` assessment will overwrite the user-global one in
+  `current_risk.by_tool.claude_code` (and vice versa). Mitigation is
+  the same: pull host's recent events when the analyst drills into a
+  specific tool, or wait for producer to expose per-(tool, scope)
+  history in a future read-API extension.
+- Hooks scan (Claude Code per-repo only) means hook-script-containing
+  reasons (`destructive_in_hook_script`, `external_script_unscanned`)
+  may now appear with `scope.kind="project"`. Existing reason variants
+  are reused — no rendering changes required.
+
+**Reference:** producer spec at
+`Ju571nK/sigil:docs/superpowers/specs/2026-05-18-phase-3b6.2-claude-codex-per-repo-discovery-design.html`
+and plan
+`Ju571nK/sigil:docs/superpowers/plans/2026-05-18-phase-3b6.2-claude-codex-per-repo-discovery.html`.
+Producer explicitly requested this §14 entry be added (per the spec's
+producer-first §0 paragraph).
+
+### 14.5 Aggregate consumer-side checklist (across 3b.4 → 3b.6.2)
+
+For Plan 02 and beyond, sigil-manager's rendering paths MUST handle:
+
+- **Four `tool` values:** `claude_code`, `codex`, `claude_desktop`,
+  `continue_dev` — plus a generic fallback for future additions
+  (e.g., Gemini CLI + Cursor when Phase 3b.2 ships).
+- **Three `scope.kind` shapes:**
+  - `{"kind": "user_global"}` — no extra fields.
+  - `{"kind": "project", "path": "/abs/..."}` — display path.
+  - `{"kind": "application", "app": "claude_desktop"\|"continue"\|...}` —
+    display app name.
+- **The `(tool, scope)` overwrite issue** in
+  `current_risk.by_tool` for any tool emitted under multiple scopes.
+- **HostMetaSnapshot** wire payload everywhere `host_meta` is exposed.
+
+Mock fixtures in `internal/fleet/mock.go` (Plan 02 Task 4) MUST cover
+at least one event from each of these surfaces so the SPA's rendering
+paths get exercised against realistic producer-side shapes.
