@@ -32,4 +32,34 @@
   /* Typography */
   --font-sans: "Inter", -apple-system, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+
+  /*
+   * shadcn token aliases — the generator emits utility classes like
+   * `bg-background`, `text-foreground`, `border-input`, `bg-popover`,
+   * `bg-destructive`, etc. Tailwind v4 builds those utilities from
+   * `--color-*` keys, so we bind shadcn's conventional names onto our
+   * UI/UX §6 semantic tokens here. Doing it once means generated
+   * components work without per-file token rewrites.
+   *
+   * Note: shadcn's "accent" is the SUBTLE hover/focus background
+   * (not our brand color). Our brand accent stays as `--color-accent`;
+   * we don't expose it under shadcn's slot to avoid hover noise.
+   */
+  --color-background: var(--color-bg-page);
+  --color-foreground: var(--color-text-body);
+  --color-card: var(--color-bg-surface);
+  --color-card-foreground: var(--color-text-body);
+  --color-popover: var(--color-bg-elevated);
+  --color-popover-foreground: var(--color-text-primary);
+  --color-primary: var(--color-accent);
+  --color-primary-foreground: var(--color-bg-page);
+  --color-secondary: var(--color-bg-elevated);
+  --color-secondary-foreground: var(--color-text-primary);
+  --color-muted: var(--color-bg-elevated);
+  --color-muted-foreground: var(--color-text-muted);
+  --color-destructive: var(--color-sev-critical);
+  --color-destructive-foreground: var(--color-text-primary);
+  --color-input: var(--color-border);
+  --color-ring: var(--color-accent);
+  --radius: 4px;
 }
