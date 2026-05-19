@@ -227,6 +227,16 @@ function AlertsPage() {
             onRowHoverLeave={onRowHoverLeave}
             sort={sort}
             onSortChange={onSortChange}
+            isPending={isPending}
+            filtersActive={isFilterActive(filter)}
+            onResetFilters={() =>
+              setSearch({
+                minBucket: undefined,
+                triageStatuses: undefined,
+                since: undefined,
+                query: undefined,
+              })
+            }
           />
         )}
       </div>
@@ -257,6 +267,16 @@ function triggerStatusButton(label: 'Acknowledge' | 'Resolve' | 'Investigating')
       return;
     }
   }
+}
+
+/** True when any filter differs from defaults. Drives "Reset filters" copy. */
+function isFilterActive(f: AlertFilter): boolean {
+  return (
+    f.minBucket !== DEFAULT_FILTER.minBucket ||
+    f.triageStatuses.length !== DEFAULT_FILTER.triageStatuses.length ||
+    f.since !== DEFAULT_FILTER.since ||
+    f.query !== DEFAULT_FILTER.query
+  );
 }
 
 /**

@@ -178,6 +178,13 @@ function SlideOverBody({
 
       {/* Body — scrollable. */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 text-sm">
+        {triage.isPending && (
+          <div aria-hidden className="space-y-2">
+            <div className="h-2 w-2/3 animate-pulse rounded bg-bg-elevated" />
+            <div className="h-2 w-1/2 animate-pulse rounded bg-bg-elevated" />
+            <div className="h-2 w-3/4 animate-pulse rounded bg-bg-elevated" />
+          </div>
+        )}
         <FactGrid event={event} ag={ag} />
 
         {/* Actions */}

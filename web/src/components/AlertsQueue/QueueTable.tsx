@@ -10,6 +10,12 @@ interface Props {
   onRowHoverLeave: () => void;
   sort: SortMode;
   onSortChange: (next: SortMode) => void;
+  /** True before the first successful fetch — show skeleton rows. */
+  isPending?: boolean;
+  /** True if the visible row set is empty because filters excluded everything. */
+  filtersActive?: boolean;
+  /** When the empty state is filter-driven, this resets the filter to defaults. */
+  onResetFilters?: () => void;
 }
 
 export type SortMode = 'severity_desc' | 'age_desc' | 'age_asc';
@@ -39,6 +45,9 @@ export function QueueTable({
   onRowHoverLeave,
   sort,
   onSortChange,
+  isPending,
+  filtersActive,
+  onResetFilters,
 }: Props) {
   const sorted = useMemo(() => sortEvents(events, sort), [events, sort]);
 
@@ -64,8 +73,10 @@ export function QueueTable({
     <div className="flex flex-col overflow-hidden rounded-md border border-border bg-bg-surface">
       <Header sort={sort} onSortChange={onSortChange} />
       <div className="max-h-[calc(100vh-220px)] overflow-y-auto">
-        {sorted.length === 0 ? (
-          <EmptyHint />
+        {isPending ? (
+          <SkeletonRows />
+        ) : sorted.length === 0 ? (
+          <EmptyHint filtersActive={filtersActive} onResetFilters={onResetFilters} />
         ) : (
           sorted.map((ev) => (
             <QueueRow
@@ -116,10 +127,63 @@ function Header({
   );
 }
 
-function EmptyHint() {
+function EmptyHint({
+  filtersActive,
+  onResetFilters,
+}: {
+  filtersActive?: boolean;
+  onResetFilters?: () => void;
+}) {
+  if (filtersActive) {
+    return (
+      <div className="flex h-32 flex-col items-center justify-center gap-2 text-sm text-text-subtle">
+        <span>No alerts match the current filters.</span>
+        {onResetFilters && (
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="text-xs text-accent underline-offset-2 hover:underline"
+          >
+            Reset filters
+          </button>
+        )}
+      </div>
+    );
+  }
+  // Genuinely empty (no alerts at all under current filters) — celebrate
+  // until UI/UX D2's "last incident N days ago" data is available
+  // (Plan 04 host-detail will provide last-seen severity history).
   return (
-    <div className="flex h-32 items-center justify-center text-sm text-text-subtle">
-      No alerts match the current filters.
+    <div className="flex h-32 items-center justify-center text-sm text-text-muted">
+      <span>🎉 No open alerts.</span>
+    </div>
+  );
+}
+
+/**
+ * Five 28px skeleton rows with a shimmer animation while the first fetch
+ * is in flight. Subsequent polling refreshes don't show this — the
+ * FreshnessIndicator surfaces "Refreshing…" instead so the queue doesn't
+ * jump.
+ */
+function SkeletonRows() {
+  return (
+    <div aria-hidden="true">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div
+          // biome-ignore lint/suspicious/noArrayIndexKey: positional placeholder, no identity
+          key={i}
+          className="grid h-[28px] w-full grid-cols-[16px_64px_minmax(0,1fr)_140px_72px_92px_120px] items-center gap-3 border-b border-border-subtle px-3"
+        >
+          <span className="block h-2 w-2 rounded-full bg-bg-elevated" />
+          <span className="block h-2 w-12 animate-pulse rounded bg-bg-elevated" />
+          <span className="block h-2 w-3/4 animate-pulse rounded bg-bg-elevated" />
+          <span className="block h-2 w-24 animate-pulse rounded bg-bg-elevated" />
+          <span className="block h-2 w-10 animate-pulse rounded bg-bg-elevated" />
+          <span className="block h-2 w-14 animate-pulse rounded bg-bg-elevated" />
+          <span className="block h-2 w-16 animate-pulse rounded bg-bg-elevated" />
+        </div>
+      ))}
     </div>
   );
 }
