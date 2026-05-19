@@ -76,11 +76,11 @@ func TestMock_HostnameNullWhenNoHostMeta(t *testing.T) {
 // Event fixture coverage (§14.5 aggregate checklist)
 // -----------------------------------------------------------------------------
 
-func TestMock_30EventsSpan24h(t *testing.T) {
+func TestMock_32EventsSpan24h(t *testing.T) {
 	m := newTestMock(t)
 	page, err := m.Events(context.Background(), EventsParams{Limit: 1000})
 	require.NoError(t, err)
-	require.Len(t, page.Events, 30)
+	require.Len(t, page.Events, 32)
 
 	oldest := page.Events[len(page.Events)-1].TS
 	newest := page.Events[0].TS
@@ -106,7 +106,7 @@ func TestMock_AtLeast5HighOrCriticalAiGuardEvents(t *testing.T) {
 	assert.GreaterOrEqual(t, hits, 5, "Plan 02 T4 fixture must include >= 5 high/critical AI guard events")
 }
 
-func TestMock_AllFourToolValues(t *testing.T) {
+func TestMock_AllSixToolValues(t *testing.T) {
 	m := newTestMock(t)
 	page, _ := m.Events(context.Background(), EventsParams{Limit: 1000})
 	seen := map[string]bool{}
@@ -115,7 +115,8 @@ func TestMock_AllFourToolValues(t *testing.T) {
 			seen[ag.Tool] = true
 		}
 	}
-	for _, want := range []string{"claude_code", "codex", "claude_desktop", "continue_dev"} {
+	// gemini + cursor added per contract §14.7 (producer Phase 3b.7).
+	for _, want := range []string{"claude_code", "codex", "claude_desktop", "continue_dev", "gemini", "cursor"} {
 		assert.True(t, seen[want], "fixtures must include tool=%q (§14.5 aggregate checklist)", want)
 	}
 }
@@ -163,7 +164,7 @@ func TestMock_EventsPaginate(t *testing.T) {
 		}
 		cursor = *page.NextCursor
 	}
-	require.Len(t, collected, 30, "walk must terminate after 30 events")
+	require.Len(t, collected, 32, "walk must terminate after 32 events")
 
 	// Reverse-chronological order across pages.
 	for i := 1; i < len(collected); i++ {

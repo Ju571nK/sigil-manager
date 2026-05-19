@@ -14,8 +14,8 @@ import (
 //
 // Fixtures cover the §14.5 aggregate checklist: 5 hosts (healthy/stale/
 // disconnected mix), one host with full HostMetaSnapshot + one with null,
-// and 30 events spanning the trailing 24h with the union of `tool` values
-// (claude_code, codex, claude_desktop, continue_dev) and the union of
+// and 32 events spanning the trailing 24h with the union of `tool` values
+// (claude_code, codex, claude_desktop, continue_dev, gemini, cursor) and the union of
 // `scope.kind` values (user_global, project, application) all present.
 type MockClient struct {
 	seed         time.Time
@@ -338,7 +338,7 @@ func latestAssessed(cr *CurrentRisk) time.Time {
 // build populates the Mock's fixtures. Layout:
 //   - 5 hosts (alice/bob/carol/dave/eve) with the status/risk/host_meta
 //     coverage described on MockClient.
-//   - 30 events spanning seed-24h .. seed; tool + scope unions cover §14.5.
+//   - 32 events spanning seed-24h .. seed; tool + scope unions cover §14.5.
 func (m *MockClient) build() {
 	m.meta = Meta{
 		ServerVersion: "0.5.0-mock",
@@ -533,19 +533,21 @@ func (m *MockClient) buildHosts() {
 	}
 }
 
-// buildEvents emits 30 deterministic events spanning seed-24h..seed. The
+// buildEvents emits 32 deterministic events spanning seed-24h..seed. The
 // recipe in `eventRecipes` is hand-crafted so the union of `tool` values
 // used by ai_guard_risk_assessed events == {claude_code, codex,
-// claude_desktop, continue_dev} and the union of `scope.kind` shapes ==
-// {user_global, project, application}, with at least 5 events in
-// {high, critical} bucket.
+// claude_desktop, continue_dev, gemini, cursor} (the latter two added
+// per contract §14.7 after producer Phase 3b.7 shipped) and the union
+// of `scope.kind` shapes == {user_global, project, application}, with
+// at least 5 events in {high, critical} bucket.
 func (m *MockClient) buildEvents() {
 	recipes := eventRecipes()
 
 	for i, r := range recipes {
-		// Stagger event timestamps backwards from seed across 24h, ~48 min apart.
-		// Earlier index → newer timestamp (so events[0] is the most recent).
-		eventTS := m.seed.Add(-time.Duration(i) * 48 * time.Minute)
+		// Stagger event timestamps backwards from seed across 24h, ~44 min apart
+		// (32 × 44 = 1408 min < 24h). Earlier index → newer timestamp (so
+		// events[0] is the most recent).
+		eventTS := m.seed.Add(-time.Duration(i) * 44 * time.Minute)
 		eventID := uuidv7At(eventTS.UnixMilli(), uint64(len(recipes)-i))
 
 		ev := Event{
@@ -595,7 +597,7 @@ type eventRecipe struct {
 	hostID, severity, source, subject, evidence string
 }
 
-// eventRecipes is the canonical list of 30 fixture events. The first ones
+// eventRecipes is the canonical list of 32 fixture events. The first ones
 // in the list become the newest (most recent ts) after build sorting.
 // Coverage targets (see buildEvents): union of tools, union of scope kinds,
 // ≥5 events with kind=ai_guard_risk_assessed AND bucket ∈ {high, critical}.
@@ -629,6 +631,10 @@ func eventRecipes() []eventRecipe {
 		{hBob, "warn", src, subjPath("/Users/bob/code/api/.codex/config.toml"), `{"kind":"ai_guard_risk_assessed","tool":"codex","scope":{"kind":"project","path":"/Users/bob/code/api"},"score":4.5,"bucket":"medium","reasons":[{"kind":"destructive_in_hook_script","pattern":"sudo rm"}],"is_reattestation":false}`},
 		// --- Eve: continue_dev high, project scope ---
 		{hEve, "warn", src, subjPath("/Users/eve/code/billing/.continue/config.json"), `{"kind":"ai_guard_risk_assessed","tool":"continue_dev","scope":{"kind":"project","path":"/Users/eve/code/billing"},"score":7.4,"bucket":"high","reasons":[{"kind":"mcp_server_remote","hook_event":"mcp_command"}],"is_reattestation":false}`},
+		// --- Bob: gemini medium, user_global (3b.7) ---
+		{hBob, "warn", src, subjPath("/Users/bob/.config/gemini-cli/config.json"), `{"kind":"ai_guard_risk_assessed","tool":"gemini","scope":{"kind":"user_global"},"score":3.8,"bucket":"medium","reasons":[{"kind":"mcp_server_remote","hook_event":"mcp_command"}],"is_reattestation":false}`},
+		// --- Carol: cursor high, application scope (3b.7) ---
+		{hCarol, "warn", src, subjPath("/home/carol/.cursor/settings.json"), `{"kind":"ai_guard_risk_assessed","tool":"cursor","scope":{"kind":"application","app":"cursor"},"score":6.2,"bucket":"high","reasons":[{"kind":"no_sandbox","executor":"mcp_command"}],"is_reattestation":false}`},
 
 		// --- Non-AI-guard, host-meta + heartbeats + policy ---
 		{hAlice, "info", srcAgent, subjAgent, `{"kind":"host_meta_snapshot","os_name":"macOS","os_version":"14.5","kernel_version":"23.5.0","architecture":"arm64","interfaces":[{"name":"en0","mac":"00:1b:44:11:3a:b7","ipv4":["192.168.1.42/24"],"ipv6":["fe80::1/64"]}],"default_gateway_v4":"192.168.1.1","default_gateway_v6":null,"dns_servers":["1.1.1.1","8.8.8.8"]}`},
@@ -659,7 +665,7 @@ func eventRecipes() []eventRecipe {
 		{hAlice, "warn", src, subjPath("/Users/alice/.claude/hooks/preflight.sh"), `{"kind":"ai_guard_risk_assessed","tool":"claude_code","scope":{"kind":"user_global"},"score":6.5,"bucket":"high","reasons":[{"kind":"external_script_unscanned"}],"is_reattestation":false}`},
 		{hEve, "warn", src, subjPath("/Users/eve/.continue/config.json"), `{"kind":"ai_guard_risk_assessed","tool":"continue_dev","scope":{"kind":"user_global"},"score":7.9,"bucket":"critical","reasons":[],"is_reattestation":false}`},
 
-		// --- More info-level activity to round to 30 ---
+		// --- More info-level activity to round to 32 ---
 		{hBob, "info", srcAgent, subjAgent, `{"kind":"heartbeat","hash_p99_ms":3,"jsonl_above_soft_floor":false}`},
 		{hCarol, "info", src, subjPath("/etc/hosts"), `{"kind":"file_change","op":"modify","sha256":"01020304"}`},
 		{hEve, "info", srcAgent, subjAgent, `{"kind":"policy_reloaded","policy_version":18}`},
