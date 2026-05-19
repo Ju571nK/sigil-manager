@@ -71,20 +71,39 @@ type Client interface {
 // Errors
 // -----------------------------------------------------------------------------
 
-// ErrNotFound wraps a 404 response from any endpoint that exposes `{id}`
-// lookups (`/v1/events/{id}`, `/v1/fleet/hosts/{id}`). Per contract §3.4, the
-// read API returns 404 with no body when SIGIL_SERVER_READ_TOKEN is unset on
-// the server side; callers should not distinguish that case from a genuine
-// missing-id, just surface "host/event not found".
+// ErrNotFound wraps a 404 response from id-lookup endpoints
+// (`/v1/events/{id}`, `/v1/fleet/hosts/{id}`) — the host/event is genuinely
+// not in the index.
 var ErrNotFound = errors.New("fleet: not found")
+
+// ErrReadAPIDisabled wraps a 404 response from a non-id endpoint
+// (`/v1/meta`, `/v1/fleet/risk`, etc.). Per contract §3.4 / §6.1, the read
+// API returns 404 with no body when SIGIL_SERVER_READ_TOKEN is unset on the
+// sigil-server side, so the consumer cannot distinguish it from a 404 from
+// other read paths. Surfaced to the Settings banner: "sigil-server has the
+// read API disabled (set SIGIL_SERVER_READ_TOKEN there)."
+var ErrReadAPIDisabled = errors.New("fleet: read API disabled on sigil-server")
 
 // ErrUnauthorized wraps a 401 — bearer missing or wrong (contract §6.1).
 var ErrUnauthorized = errors.New("fleet: unauthorized")
 
 // ErrServiceUnavailable wraps a 503 — sigil-server's boot rebuild is still
-// in progress (F15). The HTTP impl honors `Retry-After` from the response
-// header; callers may also back off and retry.
+// in progress (F15). The HTTP impl populates [ServiceUnavailableError.RetryAfter]
+// from the `Retry-After` header.
 var ErrServiceUnavailable = errors.New("fleet: service unavailable")
+
+// ServiceUnavailableError is the error type returned for 503 responses. It
+// wraps [ErrServiceUnavailable] so callers can `errors.Is` it, and carries
+// the parsed `Retry-After` so the retry layer can honor it.
+type ServiceUnavailableError struct {
+	RetryAfter time.Duration
+}
+
+func (e *ServiceUnavailableError) Error() string {
+	return fmt.Sprintf("%s (retry after %s)", ErrServiceUnavailable.Error(), e.RetryAfter)
+}
+
+func (e *ServiceUnavailableError) Unwrap() error { return ErrServiceUnavailable }
 
 // APIError is the contract §6.1 error body. HttpClient wraps non-2xx
 // responses in this type so callers can inspect `Code` programmatically.
