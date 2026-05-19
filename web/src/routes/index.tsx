@@ -1,39 +1,22 @@
-import { useQuery } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
-import { Button } from '@/components/ui/button';
-import { apiFetch } from '@/lib/api';
+import { createFileRoute, redirect } from '@tanstack/react-router';
+import { me } from '@/api/auth';
+import { SessionExpiredError, UnauthorizedError } from '@/api/client';
 
-interface Health {
-  status: string;
-  version: string;
-  timestamp: string;
-}
-
+/**
+ * `/` is a redirect: authed → `/alerts`, otherwise → `/login`. We probe
+ * `/api/v1/auth/me` to make the decision so the bounce reflects actual
+ * server state, not a stale client-side flag.
+ */
 export const Route = createFileRoute('/')({
-  component: IndexPage,
+  beforeLoad: async () => {
+    try {
+      await me();
+      throw redirect({ to: '/alerts' });
+    } catch (err) {
+      if (err instanceof UnauthorizedError || err instanceof SessionExpiredError) {
+        throw redirect({ to: '/login' });
+      }
+      throw err;
+    }
+  },
 });
-
-function IndexPage() {
-  const { data, error, isFetching, refetch } = useQuery({
-    queryKey: ['health'],
-    queryFn: () => apiFetch<Health>('/api/health'),
-  });
-
-  return (
-    <main className="font-sans p-8">
-      <h1 className="text-2xl font-semibold text-text-primary">sigil-manager</h1>
-      <p className="text-text-muted mt-1">Scaffolded. API probe:</p>
-      <div className="mt-4 flex gap-2">
-        <Button onClick={() => refetch()} disabled={isFetching}>
-          {isFetching ? 'Probing…' : 'Probe again'}
-        </Button>
-      </div>
-      {error && <pre className="mt-4 text-sev-critical">{(error as Error).message}</pre>}
-      {data && (
-        <pre className="mt-4 p-3 bg-bg-elevated border border-border rounded font-mono text-sm">
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      )}
-    </main>
-  );
-}
