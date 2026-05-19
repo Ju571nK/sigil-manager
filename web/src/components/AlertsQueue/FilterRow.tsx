@@ -8,6 +8,9 @@ interface Props {
   onChange: (next: Partial<AlertFilter>) => void;
 }
 
+/** id on the search input so `useShortcuts` can focus it on `/`. */
+export const SEARCH_INPUT_ID = 'alerts-search-input';
+
 const BUCKETS: Array<{ value: AlertFilter['minBucket']; label: string }> = [
   { value: 'low', label: 'All' },
   { value: 'medium', label: 'Medium+' },
@@ -95,6 +98,7 @@ export function FilterRow({ filter, onChange }: Props) {
       <div className="ml-auto relative">
         <Search className="pointer-events-none absolute left-2 top-1.5 h-3.5 w-3.5 text-text-subtle" />
         <Input
+          id={SEARCH_INPUT_ID}
           value={filter.query}
           onChange={(e) => onChange({ query: e.target.value })}
           placeholder="event_id, host, kind…"
