@@ -904,13 +904,13 @@ and plan
 Producer explicitly requested this §14 entry be added (per the spec's
 producer-first §0 paragraph).
 
-### 14.5 Aggregate consumer-side checklist (across 3b.4 → 3b.6.2)
+### 14.5 Aggregate consumer-side checklist (across 3b.4 → 3b.7)
 
 For Plan 02 and beyond, sigil-manager's rendering paths MUST handle:
 
-- **Four `tool` values:** `claude_code`, `codex`, `claude_desktop`,
-  `continue_dev` — plus a generic fallback for future additions
-  (e.g., Gemini CLI + Cursor when Phase 3b.2 ships).
+- **Six `tool` values:** `claude_code`, `codex`, `claude_desktop`,
+  `continue_dev` (3b.1 + 3b.6), `gemini`, `cursor` (3b.7) — plus a
+  generic fallback for future additions.
 - **Three `scope.kind` shapes:**
   - `{"kind": "user_global"}` — no extra fields.
   - `{"kind": "project", "path": "/abs/..."}` — display path.
@@ -923,3 +923,58 @@ For Plan 02 and beyond, sigil-manager's rendering paths MUST handle:
 Mock fixtures in `internal/fleet/mock.go` (Plan 02 Task 4) MUST cover
 at least one event from each of these surfaces so the SPA's rendering
 paths get exercised against realistic producer-side shapes.
+
+### 14.6 Phase 3b.5 — operator-tunable rubric + doctor section (shipped 2026-05-19, sigil main `d00b958`)
+
+**Wire-relevant changes for the consumer: none.**
+
+3b.5 ships two surfaces, both internal to the host:
+
+- `PolicyDocument.rubric_overrides: HashMap<String, f32>` — operator
+  override knob inside the signed policy envelope. Keys are
+  `rubric::kind_key()` output (e.g., `destructive_in_hook_script`).
+- `sigil doctor` CLI gains an AI Guard diagnostic section reading from
+  a new agent control IPC `DoctorAiGuardReport`.
+
+The wire's `GET /v1/policy/meta` deliberately does NOT expose the
+policy body — it returns only `policy_version` + signing fields
+(`crates/sigil-server/src/routes/policy_meta.rs`). So consumer types
+need no change; reasons that ride on `ai_guard_risk_assessed` still
+carry their existing `kind` discriminator + per-variant fields.
+
+If a later phase exposes the effective rubric on the wire (e.g., via
+`GET /v1/policy/rubric` or a `meta.rubric` block), this section gets
+upgraded to a non-empty consumer impact note. Until then, no action.
+
+### 14.7 Phase 3b.7 — declarative rule packs + Gemini / Cursor coverage (shipped 2026-05-19, sigil main `8cb8d61`)
+
+**Wire-relevant changes for the consumer:** the `tool` field on
+`ai_guard_risk_assessed` evidence gains two additive values.
+
+| Wire string | Source | Notes |
+|---|---|---|
+| `gemini` | `AiTool::Gemini` (`crates/sigil-core/src/event.rs`) | Google Gemini CLI — `~/.config/gemini-cli/*` |
+| `cursor` | `AiTool::Cursor` (same file) | Cursor IDE — `~/.cursor/*` |
+
+The existing four values (`claude_code`, `codex`, `claude_desktop`,
+`continue_dev`) are unchanged. Producer's commit message states:
+
+> Additive — existing 4 variants unchanged. Backward compat: old
+> envelopes/events unaffected; old consumers see new strings via
+> generic fallback path.
+
+**Consumer action items absorbed under this entry:**
+
+1. `humanTool()` in [`web/src/components/AlertsQueue/SlideOver.tsx`](../../web/src/components/AlertsQueue/SlideOver.tsx)
+   must render `gemini` → "Gemini" and `cursor` → "Cursor" (otherwise
+   the slide-over header shows the raw wire string).
+2. Mock fixtures in [`internal/fleet/mock.go`](../../internal/fleet/mock.go)
+   SHOULD include at least one event of each new tool so the SPA's
+   rendering paths get exercised against the full surface.
+3. `internal/fleet/types.go`: no change. `Tool` is `string`, not a
+   Go enum — pass-through is automatic.
+
+The `rule_packs:` field added to `PolicyDocument` in 3b.7 lives inside
+the signed policy envelope (consumed by sigil-agent), not on the wire.
+Same wire-isolation as `rubric_overrides` in §14.6 — no consumer
+impact unless a later phase exposes pack metadata via the read API.
