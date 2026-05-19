@@ -8,7 +8,9 @@
     "build": "vite build && tsc -b",
     "lint": "biome check src/",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
@@ -31,6 +33,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-query-devtools": "^5.100.10",
     "@tanstack/router-devtools": "^1.167.0",
