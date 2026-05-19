@@ -104,8 +104,16 @@ func (s *Signer) Sign(subject string) (string, time.Time, error) {
 //   - iss == "sigil-manager"
 //   - subject is non-empty
 func (s *Signer) Verify(token string) (string, error) {
+	sub, _, err := s.VerifyWithExp(token)
+	return sub, err
+}
+
+// VerifyWithExp is [Signer.Verify] plus the parsed `exp` claim. Handlers
+// that need to show the session expiry to the user (e.g. /auth/me) call
+// this; middleware that just needs to gate use [Signer.Verify].
+func (s *Signer) VerifyWithExp(token string) (string, time.Time, error) {
 	if token == "" {
-		return "", ErrInvalidToken
+		return "", time.Time{}, ErrInvalidToken
 	}
 	parser := jwt.NewParser(
 		jwt.WithValidMethods([]string{signingMethod}),
@@ -118,15 +126,19 @@ func (s *Signer) Verify(token string) (string, error) {
 	})
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
-			return "", ErrExpiredToken
+			return "", time.Time{}, ErrExpiredToken
 		}
-		return "", ErrInvalidToken
+		return "", time.Time{}, ErrInvalidToken
 	}
 	if !parsed.Valid {
-		return "", ErrInvalidToken
+		return "", time.Time{}, ErrInvalidToken
 	}
 	if claims.Subject == "" {
-		return "", ErrInvalidToken
+		return "", time.Time{}, ErrInvalidToken
 	}
-	return claims.Subject, nil
+	var exp time.Time
+	if claims.ExpiresAt != nil {
+		exp = claims.ExpiresAt.Time
+	}
+	return claims.Subject, exp, nil
 }
