@@ -28,3 +28,20 @@ pre,
 samp {
   font-family: var(--font-mono);
 }
+
+/*
+ * Alerts queue "fresh row" flash. UI/UX §6.2 calls for a 1-second highlight
+ * when a new critical alert lands at the top of the queue so the operator's
+ * eye is drawn to it. The animation is driven by `data-fresh="true"` on the
+ * row; QueueTable adds the attribute for one tick after a new row appears.
+ */
+@keyframes alertFlash {
+  0% {
+    background-color: color-mix(in srgb, var(--color-sev-critical) 30%, transparent);
+    box-shadow: 0 0 0 1px var(--color-sev-critical) inset;
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
