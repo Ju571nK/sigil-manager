@@ -722,8 +722,9 @@ consumer side knows what to compensate for, and so follow-up issues against
 
 ### 13.1 Suggested follow-up issues for `Ju571nK/sigil`
 
-- **`/v1/fleet/risk.open_alert_count_24h` should respect
-  `alerts_definition_default`.** Current impl (`0dce160`,
+- ✅ **Filed as [`Ju571nK/sigil#21`](https://github.com/Ju571nK/sigil/issues/21)
+  (2026-05-19):** `/v1/fleet/risk.open_alert_count_24h` should respect
+  `alerts_definition_default`. Current impl (`0dce160`,
   `crates/sigil-server/src/routes/fleet_risk.rs:116`) returns
   `h.counts_24h.sum_warn()`, which is the trailing-24h warn-severity
   event sum and includes every warn-emitting Evidence variant
@@ -860,7 +861,7 @@ emits **more events with `tool=continue_dev` + `scope.kind=project`**.
 and plan
 `Ju571nK/sigil:docs/superpowers/plans/2026-05-17-phase-3b6.1-continue-per-repo-discovery.html`.
 
-### 14.4 Phase 3b.6.2 — Claude Code + Codex per-repo discovery (in flight 2026-05-18, branch `feat/phase-3b6.2-claude-codex-per-repo-discovery`)
+### 14.4 Phase 3b.6.2 — Claude Code + Codex per-repo discovery (shipped 2026-05-19, sigil main `9ddd37b`)
 
 Extends the 3b.6.1 pattern to two more tools. Two new policy envelope
 fields on the producer side — `claude_code_workspaces: Vec<String>`
