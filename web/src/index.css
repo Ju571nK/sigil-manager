@@ -1,6 +1,16 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
 
+/*
+ * Self-host Inter (sans body) + JetBrains Mono (code/IDs) via @fontsource
+ * so the binary is fully offline-capable; no CDN dependency. We pull only
+ * 400/500/600 weights to keep the SPA bundle lean.
+ */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/jetbrains-mono/400.css";
+
 html,
 body,
 #root {
@@ -9,4 +19,29 @@ body,
   font-family: var(--font-sans);
   margin: 0;
   min-height: 100vh;
+}
+
+/* Inline code / event-id columns. */
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--font-mono);
+}
+
+/*
+ * Alerts queue "fresh row" flash. UI/UX §6.2 calls for a 1-second highlight
+ * when a new critical alert lands at the top of the queue so the operator's
+ * eye is drawn to it. The animation is driven by `data-fresh="true"` on the
+ * row; QueueTable adds the attribute for one tick after a new row appears.
+ */
+@keyframes alertFlash {
+  0% {
+    background-color: color-mix(in srgb, var(--color-sev-critical) 30%, transparent);
+    box-shadow: 0 0 0 1px var(--color-sev-critical) inset;
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
 }
