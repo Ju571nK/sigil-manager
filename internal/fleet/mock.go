@@ -621,18 +621,18 @@ func eventRecipes() []eventRecipe {
 	return []eventRecipe{
 		// --- Alice: claude_code critical, user_global ---
 		{hAlice, "warn", src, subjPath("/Users/alice/.claude/settings.json"), `{"kind":"ai_guard_risk_assessed","tool":"claude_code","scope":{"kind":"user_global"},"score":7.2,"bucket":"critical","reasons":[{"kind":"destructive_in_inline_command","pattern":"rm -rf","hook_event":"PreToolUse","snippet":"rm -rf /"}],"is_reattestation":false}`},
-		// --- Eve: continue_dev critical, user_global ---
-		{hEve, "warn", src, subjPath("/Users/eve/.continue/config.json"), `{"kind":"ai_guard_risk_assessed","tool":"continue_dev","scope":{"kind":"user_global"},"score":8.4,"bucket":"critical","reasons":[{"kind":"mcp_server_remote","hook_event":"mcp_command"}],"is_reattestation":false}`},
+		// --- Eve: continue_dev critical, user_global (mcp_server_remote w/ server_name+url) ---
+		{hEve, "warn", src, subjPath("/Users/eve/.continue/config.json"), `{"kind":"ai_guard_risk_assessed","tool":"continue_dev","scope":{"kind":"user_global"},"score":8.4,"bucket":"critical","reasons":[{"kind":"mcp_server_remote","server_name":"acme-tools","url":"https://mcp.acme.example/sse"}],"is_reattestation":false}`},
 		// --- Carol: claude_desktop high, application scope ---
 		{hCarol, "warn", src, subjPath("/home/carol/.config/Claude/claude_desktop_config.json"), `{"kind":"ai_guard_risk_assessed","tool":"claude_desktop","scope":{"kind":"application","app":"claude_desktop"},"score":6.8,"bucket":"high","reasons":[{"kind":"no_sandbox","executor":"mcp_command"}],"is_reattestation":false}`},
 		// --- Alice: per-project claude_code, high (project scope) ---
 		{hAlice, "warn", src, subjPath("/Users/alice/code/work-repo/.claude/settings.local.json"), `{"kind":"ai_guard_risk_assessed","tool":"claude_code","scope":{"kind":"project","path":"/Users/alice/code/work-repo"},"score":6.1,"bucket":"high","reasons":[{"kind":"external_script_unscanned","pattern":"hooks/preflight.sh"}],"is_reattestation":false}`},
-		// --- Bob: codex medium, project scope ---
-		{hBob, "warn", src, subjPath("/Users/bob/code/api/.codex/config.toml"), `{"kind":"ai_guard_risk_assessed","tool":"codex","scope":{"kind":"project","path":"/Users/bob/code/api"},"score":4.5,"bucket":"medium","reasons":[{"kind":"destructive_in_hook_script","pattern":"sudo rm"}],"is_reattestation":false}`},
+		// --- Bob: codex high, project scope (destructive_in_hook_script w/ 3b.3.1 source_chain) ---
+		{hBob, "warn", src, subjPath("/Users/bob/code/api/.codex/config.toml"), `{"kind":"ai_guard_risk_assessed","tool":"codex","scope":{"kind":"project","path":"/Users/bob/code/api"},"score":6.6,"bucket":"high","reasons":[{"kind":"destructive_in_hook_script","pattern":"sudo rm","hook_event":"PreToolUse","script_path":"/Users/bob/code/api/.codex/hooks/preflight.sh","snippet":"sudo rm -rf $TMP","source_chain":["/Users/bob/code/api/.codex/hooks/preflight.sh","/Users/bob/code/api/.codex/hooks/lib/clean.sh"]}],"is_reattestation":false}`},
 		// --- Eve: continue_dev high, project scope ---
 		{hEve, "warn", src, subjPath("/Users/eve/code/billing/.continue/config.json"), `{"kind":"ai_guard_risk_assessed","tool":"continue_dev","scope":{"kind":"project","path":"/Users/eve/code/billing"},"score":7.4,"bucket":"high","reasons":[{"kind":"mcp_server_remote","hook_event":"mcp_command"}],"is_reattestation":false}`},
-		// --- Bob: gemini medium, user_global (3b.7) ---
-		{hBob, "warn", src, subjPath("/Users/bob/.config/gemini-cli/config.json"), `{"kind":"ai_guard_risk_assessed","tool":"gemini","scope":{"kind":"user_global"},"score":3.8,"bucket":"medium","reasons":[{"kind":"mcp_server_remote","hook_event":"mcp_command"}],"is_reattestation":false}`},
+		// --- Bob: gemini high, user_global (3b.7 mcp_server_local_command) ---
+		{hBob, "warn", src, subjPath("/Users/bob/.config/gemini-cli/config.json"), `{"kind":"ai_guard_risk_assessed","tool":"gemini","scope":{"kind":"user_global"},"score":6.4,"bucket":"high","reasons":[{"kind":"mcp_server_local_command","server_name":"local-fs","command":"npx -y @modelcontextprotocol/server-filesystem /"}],"is_reattestation":false}`},
 		// --- Carol: cursor high, application scope (3b.7) ---
 		{hCarol, "warn", src, subjPath("/home/carol/.cursor/settings.json"), `{"kind":"ai_guard_risk_assessed","tool":"cursor","scope":{"kind":"application","app":"cursor"},"score":6.2,"bucket":"high","reasons":[{"kind":"no_sandbox","executor":"mcp_command"}],"is_reattestation":false}`},
 
