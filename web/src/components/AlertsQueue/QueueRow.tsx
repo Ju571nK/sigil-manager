@@ -177,6 +177,10 @@ function humanTool(tool: string): string {
       return 'Continue.dev';
     case 'codex':
       return 'Codex';
+    case 'gemini':
+      return 'Gemini';
+    case 'cursor':
+      return 'Cursor';
     default:
       return tool;
   }

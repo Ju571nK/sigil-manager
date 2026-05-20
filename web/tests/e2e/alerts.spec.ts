@@ -39,6 +39,42 @@ test.describe('alerts queue + triage', () => {
     await expect(page.getByLabel('Assignee')).toBeVisible();
   });
 
+  test('hook-script reason renders the 3b.3.1 source_chain breadcrumb', async ({ page }) => {
+    await login(page);
+
+    // The Mock fixture's bob/codex event carries a destructive_in_hook_script
+    // reason with a populated source_chain (contract §14.8). Its row title is
+    // distinctive enough to target directly.
+    const row = page.locator('button:has-text("Destructive In Hook Script")').first();
+    await expect(row).toBeVisible({ timeout: 5_000 });
+    await row.click();
+
+    // The slide-over Reasons block shows the source-follow breadcrumb: the
+    // last segment of the chain plus the "→" separator between hops. These
+    // strings also appear in the raw-evidence <pre> further down, so scope
+    // to the first (Reasons-block) match.
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByText('clean.sh', { exact: false }).first()).toBeVisible();
+    await expect(sheet.getByText('→').first()).toBeVisible();
+  });
+
+  test('gemini mcp_server_local_command reason surfaces server + command', async ({ page }) => {
+    await login(page);
+
+    // bob/gemini event (3b.7) carries an mcp_server_local_command reason.
+    const row = page.locator('button:has-text("Gemini")').first();
+    await expect(row).toBeVisible({ timeout: 5_000 });
+    await row.click();
+
+    const sheet = page.getByRole('dialog');
+    // Header renders the humanized tool name, not the raw "gemini" string.
+    await expect(sheet.getByText(/AI Guard risk · Gemini/)).toBeVisible();
+    // The reason exposes server_name + command. Both also appear in the
+    // raw-evidence <pre>, so scope to the first (Reasons-block) match.
+    await expect(sheet.getByText('local-fs', { exact: false }).first()).toBeVisible();
+    await expect(sheet.getByText(/server-filesystem/).first()).toBeVisible();
+  });
+
   test('assign + acknowledge persists across reload and updates queue', async ({ page }) => {
     await login(page);
 

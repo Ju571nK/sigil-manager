@@ -1,7 +1,7 @@
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Check, Loader2, Search } from 'lucide-react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { type EventWithTriage, extractAiGuard } from '@/api/fleet';
+import { type EventWithTriage, extractAiGuard, type ReasonLike } from '@/api/fleet';
 import type { TriageStatus } from '@/api/triage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -369,23 +369,71 @@ function FactGrid({
         <Fact label="Reasons">
           <ul className="space-y-0.5">
             {ag.reasons.map((r) => (
-              <li key={`${r.kind}:${r.pattern ?? ''}:${r.hook_event ?? ''}:${r.executor ?? ''}`}>
-                <span className="text-text-primary">{humanKind(r.kind)}</span>
-                {r.pattern && (
-                  <span className="ml-1 text-text-muted">
-                    · pattern <code className="font-mono">{r.pattern}</code>
-                  </span>
-                )}
-                {r.executor && (
-                  <span className="ml-1 text-text-muted">· executor {r.executor}</span>
-                )}
-              </li>
+              <ReasonItem key={reasonKey(r)} reason={r} />
             ))}
           </ul>
         </Fact>
       )}
     </dl>
   );
+}
+
+function ReasonItem({ reason: r }: { reason: ReasonLike }) {
+  const serverName = asString(r.server_name);
+  const url = asString(r.url);
+  const command = asString(r.command);
+  const chain = asStringArray(r.source_chain);
+
+  return (
+    <li>
+      <span className="text-text-primary">{humanKind(r.kind)}</span>
+      {r.pattern && (
+        <span className="ml-1 text-text-muted">
+          · pattern <code className="font-mono">{r.pattern}</code>
+        </span>
+      )}
+      {r.executor && <span className="ml-1 text-text-muted">· executor {r.executor}</span>}
+      {serverName && (
+        <span className="ml-1 text-text-muted">
+          · server <code className="font-mono">{serverName}</code>
+        </span>
+      )}
+      {url && (
+        <span className="ml-1 text-text-muted">
+          · url <code className="font-mono break-all">{url}</code>
+        </span>
+      )}
+      {command && (
+        <span className="ml-1 text-text-muted">
+          · command <code className="font-mono break-all">{command}</code>
+        </span>
+      )}
+      {/* 3b.3.1 source-follow breadcrumb (contract §14.8). */}
+      {chain.length > 0 && (
+        <span className="ml-1 block text-text-muted">
+          {chain.map((p, i) => (
+            <span key={p}>
+              {i > 0 && <span className="mx-1 text-text-subtle">→</span>}
+              <code className="font-mono">{shortPath(p)}</code>
+            </span>
+          ))}
+        </span>
+      )}
+    </li>
+  );
+}
+
+function reasonKey(r: ReasonLike): string {
+  const chain = asStringArray(r.source_chain).join('>');
+  return `${r.kind}:${r.pattern ?? ''}:${r.hook_event ?? ''}:${r.executor ?? ''}:${asString(r.server_name) ?? ''}:${chain}`;
+}
+
+function asString(v: unknown): string | undefined {
+  return typeof v === 'string' && v.length > 0 ? v : undefined;
+}
+
+function asStringArray(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
 }
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
