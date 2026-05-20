@@ -919,6 +919,12 @@ For Plan 02 and beyond, sigil-manager's rendering paths MUST handle:
 - **The `(tool, scope)` overwrite issue** in
   `current_risk.by_tool` for any tool emitted under multiple scopes.
 - **HostMetaSnapshot** wire payload everywhere `host_meta` is exposed.
+- **Reason variants with structured fields beyond `pattern`/`executor`:**
+  `mcp_server_remote` (`server_name` + `url`) and
+  `mcp_server_local_command` (`server_name` + `command`, 3b.7, §14.7);
+  `destructive_in_hook_script.source_chain` breadcrumb (3b.3.1, §14.8).
+  `humanKind()` title-cases any unrecognized `kind`, so unhandled
+  reasons degrade to a readable label rather than breaking.
 
 Mock fixtures in `internal/fleet/mock.go` (Plan 02 Task 4) MUST cover
 at least one event from each of these surfaces so the SPA's rendering
@@ -963,18 +969,63 @@ The existing four values (`claude_code`, `codex`, `claude_desktop`,
 > envelopes/events unaffected; old consumers see new strings via
 > generic fallback path.
 
+3b.7 also adds **one new `AiGuardReason` variant** that rides on
+`ai_guard_risk_assessed.reasons[]` (`crates/sigil-core/src/event.rs`,
+`McpServerLocalCommand`):
+
+| Reason `kind` | Fields | Emitted when |
+|---|---|---|
+| `mcp_server_local_command` | `server_name: string`, `command: string` | Rule pack engine finds a `command:` key (stdio transport) under `mcpServers.*` in Gemini/Cursor settings. Pairs with the existing `mcp_server_remote` (`server_name` + `url`). |
+
 **Consumer action items absorbed under this entry:**
 
 1. `humanTool()` in [`web/src/components/AlertsQueue/SlideOver.tsx`](../../web/src/components/AlertsQueue/SlideOver.tsx)
    must render `gemini` → "Gemini" and `cursor` → "Cursor" (otherwise
    the slide-over header shows the raw wire string).
-2. Mock fixtures in [`internal/fleet/mock.go`](../../internal/fleet/mock.go)
+2. The reasons list in the same file SHOULD surface the
+   `mcp_server_local_command` fields (`server_name` + `command`), the
+   same way it can surface `mcp_server_remote`'s `server_name` + `url`.
+   `humanKind()` already title-cases unknown kinds, so it degrades
+   gracefully if unhandled.
+3. Mock fixtures in [`internal/fleet/mock.go`](../../internal/fleet/mock.go)
    SHOULD include at least one event of each new tool so the SPA's
    rendering paths get exercised against the full surface.
-3. `internal/fleet/types.go`: no change. `Tool` is `string`, not a
-   Go enum — pass-through is automatic.
+4. `internal/fleet/types.go`: no change. `Tool` is `string` and
+   `reasons` stay raw JSON (`ReasonLike` on the SPA side is
+   open-shape) — pass-through is automatic.
 
 The `rule_packs:` field added to `PolicyDocument` in 3b.7 lives inside
 the signed policy envelope (consumed by sigil-agent), not on the wire.
 Same wire-isolation as `rubric_overrides` in §14.6 — no consumer
 impact unless a later phase exposes pack metadata via the read API.
+
+### 14.8 Phase 3b.3.1 — recursive source/include hook-script scan (shipped 2026-05-20, sigil main `f5a80bd`)
+
+**Wire-relevant change for the consumer:** the
+`destructive_in_hook_script` reason variant gains one additive field.
+
+The 3b.3 hook-script scanner only read the entry script. 3b.3.1 follows
+`source` / `.`-include directives recursively (with a cap) so a
+destructive pattern hidden in a sourced file is still caught. To show
+operators *where* the match actually lives, the reason now carries the
+follow path:
+
+| Reason `kind` | New field | Shape |
+|---|---|---|
+| `destructive_in_hook_script` | `source_chain` | Array of path strings, `[entry, …, matched_file]`. **Empty / absent** = match was in the entry script itself (back-compat with 3b.3 emissions). |
+
+Producer marked it `#[serde(default)]`, so events emitted before 3b.3.1
+(and the common case where the match is in the entry script) deserialize
+with an empty chain. No breaking change.
+
+**Consumer action items absorbed under this entry:**
+
+1. The reasons list in [`web/src/components/AlertsQueue/SlideOver.tsx`](../../web/src/components/AlertsQueue/SlideOver.tsx)
+   renders `source_chain` as a breadcrumb (`entry.sh → utils/init.sh →
+   helper.sh`) when non-empty, so the source-follow path is visible.
+2. Mock fixtures SHOULD include one `destructive_in_hook_script` reason
+   with a populated `source_chain` to exercise the breadcrumb path.
+3. `internal/fleet/types.go`: no change — reasons stay raw JSON.
+
+Tracked consumer-side as `Ju571nK/sigil-manager#5`; producer issue
+`Ju571nK/sigil#24`.
