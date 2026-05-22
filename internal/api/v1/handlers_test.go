@@ -277,6 +277,69 @@ func TestFleet_EventByID_NotFound(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
+// /fleet/risk + /fleet/compliance
+// -----------------------------------------------------------------------------
+
+func TestHandleFleetRisk_PassThroughSortedRows(t *testing.T) {
+	h := newHarness(t)
+	c := h.loginCookie()
+
+	code, body, _ := h.do(http.MethodGet, "/fleet/risk?limit=100", nil, c)
+	require.Equal(t, http.StatusOK, code)
+
+	var resp struct {
+		Rows []struct {
+			HostID            string  `json:"host_id"`
+			Score             float64 `json:"score"`
+			Bucket            string  `json:"bucket"`
+			OpenAlertCount24h int     `json:"open_alert_count_24h"`
+		} `json:"rows"`
+		NextCursor *string `json:"next_cursor"`
+	}
+	require.NoError(t, json.Unmarshal(body, &resp))
+	require.NotEmpty(t, resp.Rows, "mock seeds >=1 host with AI guard risk")
+	// §5.5: rows are sorted by score desc.
+	for i := 1; i < len(resp.Rows); i++ {
+		require.GreaterOrEqual(t, resp.Rows[i-1].Score, resp.Rows[i].Score)
+	}
+}
+
+func TestHandleFleetRisk_BadLimitIs400(t *testing.T) {
+	h := newHarness(t)
+	c := h.loginCookie()
+	code, _, _ := h.do(http.MethodGet, "/fleet/risk?limit=abc", nil, c)
+	require.Equal(t, http.StatusBadRequest, code)
+}
+
+func TestHandleFleetRisk_Unauthed401(t *testing.T) {
+	h := newHarness(t)
+	code, _, _ := h.do(http.MethodGet, "/fleet/risk", nil, nil)
+	require.Equal(t, http.StatusUnauthorized, code)
+}
+
+func TestHandleFleetCompliance_PassThroughRawSignals(t *testing.T) {
+	h := newHarness(t)
+	c := h.loginCookie()
+
+	code, body, _ := h.do(http.MethodGet, "/fleet/compliance?limit=100", nil, c)
+	require.Equal(t, http.StatusOK, code)
+
+	var resp struct {
+		Rows []struct {
+			HostID               string `json:"host_id"`
+			VersionDrift         int    `json:"version_drift"`
+			PolicyExpiredActive  bool   `json:"policy_expired_active"`
+			SignatureFailures24h int    `json:"signature_failures_24h"`
+		} `json:"rows"`
+	}
+	require.NoError(t, json.Unmarshal(body, &resp))
+	require.NotEmpty(t, resp.Rows)
+	// Server exposes raw signals only — no derived status field (F13).
+	require.NotContains(t, string(body), "compliance_score")
+	require.NotContains(t, string(body), `"status"`)
+}
+
+// -----------------------------------------------------------------------------
 // /triage
 // -----------------------------------------------------------------------------
 
