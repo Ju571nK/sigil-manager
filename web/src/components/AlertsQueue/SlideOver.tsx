@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { useAppendNote, useTriageDetailOrNull, useUpsertTriage } from '@/hooks/useTriage';
+import { humanTool } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -502,25 +503,6 @@ function relativeOrEmpty(ts: string): string {
     return formatDistanceToNowStrict(new Date(ts));
   } catch {
     return '';
-  }
-}
-
-function humanTool(tool: string): string {
-  switch (tool) {
-    case 'claude_code':
-      return 'Claude Code';
-    case 'claude_desktop':
-      return 'Claude Desktop';
-    case 'continue_dev':
-      return 'Continue.dev';
-    case 'codex':
-      return 'Codex';
-    case 'gemini':
-      return 'Gemini';
-    case 'cursor':
-      return 'Cursor';
-    default:
-      return tool;
   }
 }
 
