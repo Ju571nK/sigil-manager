@@ -25,6 +25,7 @@ type MockClient struct {
 	policyMeta   PolicyMeta
 	meta         Meta
 	versionDrift map[string]int // host_id → server_current_policy_version - last_applied
+	sigFailures  map[string]int // host_id → signature_failures_24h
 }
 
 // NewMock returns a MockClient with timestamps anchored at seed.
@@ -33,7 +34,7 @@ func NewMock(seed time.Time) *MockClient {
 	if seed.IsZero() {
 		seed = time.Now().UTC().Truncate(time.Second)
 	}
-	m := &MockClient{seed: seed, hostDetails: map[string]*HostDetail{}, versionDrift: map[string]int{}}
+	m := &MockClient{seed: seed, hostDetails: map[string]*HostDetail{}, versionDrift: map[string]int{}, sigFailures: map[string]int{}}
 	m.build()
 	return m
 }
@@ -217,7 +218,7 @@ func (m *MockClient) FleetCompliance(_ context.Context, p ComplianceParams) (*Co
 			VersionDrift:               m.versionDrift[h.HostID],
 			PolicyExpiredActive:        expired,
 			LastPolicyReloadTS:         reloadTS,
-			SignatureFailures24h:       0,
+			SignatureFailures24h:       m.sigFailures[h.HostID],
 		})
 	}
 
@@ -372,6 +373,7 @@ func (m *MockClient) buildHosts() {
 		hostMeta      *HostMeta
 		policyVer     int
 		expired       bool
+		sigFail       int
 		warn, info    int
 	}
 
@@ -444,7 +446,7 @@ func (m *MockClient) buildHosts() {
 					"claude_desktop": {Score: 6.8, Bucket: "high", AssessedTS: m.seed.Add(-1 * time.Hour)},
 				},
 			},
-			hostMeta: hostMetaCarol, policyVer: 16, warn: 8, info: 410,
+			hostMeta: hostMetaCarol, policyVer: 16, warn: 8, info: 410, sigFail: 3,
 		},
 		{
 			// dave-vm: disconnected, never emitted HostMetaSnapshot, no AI guard yet.
@@ -530,6 +532,7 @@ func (m *MockClient) buildHosts() {
 		}
 
 		m.versionDrift[s.id] = m.policyMeta.PolicyVersion - s.policyVer
+		m.sigFailures[s.id] = s.sigFail
 	}
 }
 
