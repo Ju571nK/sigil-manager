@@ -1,5 +1,6 @@
 import { formatDistanceToNowStrict } from 'date-fns';
 import { type EventWithTriage, extractAiGuard } from '@/api/fleet';
+import { humanTool } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -165,25 +166,6 @@ function computeTitle(ev: EventWithTriage, ag: ReturnType<typeof extractAiGuard>
     return reason ? `AI Guard risk: ${humanReason(reason)} · ${tool}` : `AI Guard risk · ${tool}`;
   }
   return KIND_TITLES[ev.evidence?.kind] ?? humanKind(ev.evidence?.kind ?? 'unknown');
-}
-
-function humanTool(tool: string): string {
-  switch (tool) {
-    case 'claude_code':
-      return 'Claude Code';
-    case 'claude_desktop':
-      return 'Claude Desktop';
-    case 'continue_dev':
-      return 'Continue.dev';
-    case 'codex':
-      return 'Codex';
-    case 'gemini':
-      return 'Gemini';
-    case 'cursor':
-      return 'Cursor';
-    default:
-      return tool;
-  }
 }
 
 function humanReason(kind: string): string {
