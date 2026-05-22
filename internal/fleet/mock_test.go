@@ -297,6 +297,30 @@ func TestMock_ComplianceRowsPerHost(t *testing.T) {
 	}
 }
 
+func TestMock_ComplianceCoversAllRawSignalStates(t *testing.T) {
+	m := newTestMock(t)
+	page, err := m.FleetCompliance(context.Background(), ComplianceParams{Limit: 100})
+	require.NoError(t, err)
+
+	var sawInSync, sawDrift, sawExpired, sawSigFail bool
+	for _, row := range page.Rows {
+		switch {
+		case row.PolicyExpiredActive:
+			sawExpired = true
+		case row.SignatureFailures24h > 0:
+			sawSigFail = true
+		case row.VersionDrift > 0:
+			sawDrift = true
+		default:
+			sawInSync = true
+		}
+	}
+	require.True(t, sawInSync, "need a host with no drift/expiry/sig-failures")
+	require.True(t, sawDrift, "need a host with version_drift > 0")
+	require.True(t, sawExpired, "need a host with policy_expired_active")
+	require.True(t, sawSigFail, "need a host with signature_failures_24h > 0")
+}
+
 // -----------------------------------------------------------------------------
 // Healthz / Meta
 // -----------------------------------------------------------------------------
