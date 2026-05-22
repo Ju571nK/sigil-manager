@@ -10,8 +10,8 @@ import { cn } from '@/lib/utils';
 /**
  * Top navigation strip. Per UI/UX §4:
  *   - Brand mark on the left (◆ sigil).
- *   - Primary nav items: Alerts (active in Plan 02), Fleet + Settings
- *     stubbed with "Coming in Plan 03/04" badges.
+ *   - Primary nav items: Alerts (active in Plan 02), Fleet (active in
+ *     Plan 03, links to the /fleet section); Settings still stubbed.
  *   - Connection-state pill on the right showing sigil-server liveness;
  *     polled every 10 s via /api/v1/fleet/healthz so the operator knows
  *     immediately when the upstream goes away.
@@ -56,7 +56,14 @@ export function TopNav() {
           >
             Alerts
           </Link>
-          <NavStub label="Fleet" hint="Plan 03" />
+          <Link
+            to="/fleet"
+            activeProps={{ className: 'text-text-primary bg-bg-elevated' }}
+            inactiveProps={{ className: 'text-text-muted hover:text-text-primary' }}
+            className="rounded px-2.5 py-1 transition-colors"
+          >
+            Fleet
+          </Link>
           <NavStub label="Settings" hint="Plan 05" />
         </nav>
 
