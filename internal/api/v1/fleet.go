@@ -92,6 +92,66 @@ func (s *Server) handleFleetEventByID(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleFleetRisk is a pass-through to FleetClient.FleetRisk (§5.5). The
+// RiskPage already carries JSON tags so we relay it verbatim. Note the
+// open_alert_count_24h caveat (contract §13.1 / issue #21) is a rendering
+// concern, handled SPA-side — the server relays the producer's number.
+func (s *Server) handleFleetRisk(w http.ResponseWriter, r *http.Request) {
+	params, err := parseRiskParams(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
+		return
+	}
+	page, err := s.Fleet.FleetRisk(r.Context(), params)
+	if err != nil {
+		mapFleetErr(w, err)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, page)
+}
+
+// handleFleetCompliance is a pass-through to FleetClient.FleetCompliance
+// (§5.6). Per F13 the server returns raw signals only — the status pill is
+// derived SPA-side (web/src/lib/compliance.ts).
+func (s *Server) handleFleetCompliance(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	params := fleet.ComplianceParams{Cursor: q.Get("cursor")}
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_query", "limit must be an integer")
+			return
+		}
+		params.Limit = n
+	}
+	page, err := s.Fleet.FleetCompliance(r.Context(), params)
+	if err != nil {
+		mapFleetErr(w, err)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, page)
+}
+
+// parseRiskParams translates the public query string into a
+// [fleet.RiskParams] (§5.5). `tool` is a comma list; `min_bucket` is
+// relayed as-is (the client clamps unknown values).
+func parseRiskParams(r *http.Request) (fleet.RiskParams, error) {
+	q := r.URL.Query()
+	out := fleet.RiskParams{
+		Cursor:    q.Get("cursor"),
+		Tool:      splitComma(q.Get("tool")),
+		MinBucket: q.Get("min_bucket"),
+	}
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return out, errors.New("limit must be an integer")
+		}
+		out.Limit = n
+	}
+	return out, nil
+}
+
 // lookupTriageView returns the per-row triage projection, or nil when the
 // row doesn't exist (every event is born untriaged). Errors are silently
 // dropped because a triage DB blip shouldn't tank the alerts queue —

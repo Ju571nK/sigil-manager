@@ -41,6 +41,8 @@ type Server struct {
 //	GET    /fleet/healthz                    (cookie)
 //	GET    /fleet/events                     (cookie)
 //	GET    /fleet/events/{event_id}          (cookie)
+//	GET    /fleet/risk                       (cookie)
+//	GET    /fleet/compliance                 (cookie)
 //	POST   /triage/upsert                    (cookie)
 //	POST   /triage/note                      (cookie)
 //	GET    /triage/{host_id}/{event_id}      (cookie)
@@ -61,6 +63,8 @@ func (s *Server) Routes() chi.Router {
 		r.Get("/fleet/healthz", s.handleFleetHealthz)
 		r.Get("/fleet/events", s.handleFleetEvents)
 		r.Get("/fleet/events/{event_id}", s.handleFleetEventByID)
+		r.Get("/fleet/risk", s.handleFleetRisk)
+		r.Get("/fleet/compliance", s.handleFleetCompliance)
 
 		r.Post("/triage/upsert", s.handleTriageUpsert)
 		r.Post("/triage/note", s.handleTriageNote)
