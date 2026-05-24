@@ -1,0 +1,27 @@
+/** Maps an AI-tool wire string (contract §14.5/§14.7) to a display name. */
+export function humanTool(tool: string): string {
+  switch (tool) {
+    case 'claude_code':
+      return 'Claude Code';
+    case 'claude_desktop':
+      return 'Claude Desktop';
+    case 'continue_dev':
+      return 'Continue.dev';
+    case 'codex':
+      return 'Codex';
+    case 'gemini':
+      return 'Gemini';
+    case 'cursor':
+      return 'Cursor';
+    default:
+      return tool;
+  }
+}
+
+/** Title-cases a snake_case wire kind/reason string for display, e.g. "policy_reloaded" → "Policy Reloaded". */
+export function humanKind(kind: string): string {
+  return kind
+    .split('_')
+    .map((s) => (s.length ? s[0].toUpperCase() + s.slice(1) : s))
+    .join(' ');
+}

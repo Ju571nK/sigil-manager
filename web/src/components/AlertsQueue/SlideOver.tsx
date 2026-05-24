@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { useAppendNote, useTriageDetailOrNull, useUpsertTriage } from '@/hooks/useTriage';
+import { humanKind, humanTool } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -503,32 +504,6 @@ function relativeOrEmpty(ts: string): string {
   } catch {
     return '';
   }
-}
-
-function humanTool(tool: string): string {
-  switch (tool) {
-    case 'claude_code':
-      return 'Claude Code';
-    case 'claude_desktop':
-      return 'Claude Desktop';
-    case 'continue_dev':
-      return 'Continue.dev';
-    case 'codex':
-      return 'Codex';
-    case 'gemini':
-      return 'Gemini';
-    case 'cursor':
-      return 'Cursor';
-    default:
-      return tool;
-  }
-}
-
-function humanKind(kind: string): string {
-  return kind
-    .split('_')
-    .map((s) => (s.length ? s[0].toUpperCase() + s.slice(1) : s))
-    .join(' ');
 }
 
 function scopeLabel(ag: NonNullable<ReturnType<typeof extractAiGuard>>): string {

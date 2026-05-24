@@ -144,8 +144,15 @@ store, bcrypt + JWT cookie auth, the `/alerts` queue page with filter
 chips + 5s polling + keyboard shortcuts (`j/k/Enter/Esc/a/c/r/i/n///?`),
 and a slide-over with FactGrid + acknowledge/assign/notes actions.
 
-Plans 03+ add the `/fleet/*` and `/hosts/:host` pages on top of the same
-foundation — see [`docs/superpowers/plans/`](docs/superpowers/plans/).
+Plan 04+ adds the `/hosts/:host` pages on top of the same foundation —
+see [`docs/superpowers/plans/`](docs/superpowers/plans/).
+
+## What's in Plan 03
+
+The Fleet section: `/fleet/risk` (hosts sorted by AI Guard risk),
+`/fleet/events` (fleet-wide event timeline), and `/fleet/compliance`
+(per-host policy state with a client-derived status pill). Read-only,
+20s polling. Host detail (`/hosts/:hostname`) lands in Plan 04.
 
 ## What this repo is NOT
 

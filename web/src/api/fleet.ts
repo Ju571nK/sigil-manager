@@ -137,6 +137,82 @@ export function fleetEventByID(eventID: string): Promise<EventWithTriage> {
 }
 
 // -----------------------------------------------------------------------------
+// Fleet Risk (/api/v1/fleet/risk — contract §5.5)
+// -----------------------------------------------------------------------------
+
+/** One row of `/api/v1/fleet/risk.rows`. Mirrors fleet.RiskRow. */
+export interface RiskRow {
+  host_id: string;
+  hostname: string | null;
+  score: number; // 0.0–10.0 (F7)
+  bucket: 'low' | 'medium' | 'high' | 'critical' | string;
+  top_tool: string;
+  reasons_count: number;
+  assessed_ts: string;
+  /**
+   * Trailing-24h warn-event count. Per contract §13.1 / issue #21 this is
+   * NOT alert-definition filtered — render it as "Warn 24h", not "alerts".
+   */
+  open_alert_count_24h: number;
+}
+
+export interface RiskPage {
+  rows: RiskRow[];
+  next_cursor: string | null;
+}
+
+export interface RiskParams {
+  cursor?: string;
+  limit?: number;
+  tool?: string[]; // comma-joined
+  min_bucket?: 'low' | 'medium' | 'high' | 'critical';
+}
+
+export function fleetRisk(params: RiskParams = {}): Promise<RiskPage> {
+  const q = new URLSearchParams();
+  if (params.cursor) q.set('cursor', params.cursor);
+  if (typeof params.limit === 'number') q.set('limit', String(params.limit));
+  if (params.tool?.length) q.set('tool', params.tool.join(','));
+  if (params.min_bucket) q.set('min_bucket', params.min_bucket);
+  const s = q.toString();
+  return api<RiskPage>(`/fleet/risk${s ? `?${s}` : ''}`);
+}
+
+// -----------------------------------------------------------------------------
+// Fleet Compliance (/api/v1/fleet/compliance — contract §5.6)
+// -----------------------------------------------------------------------------
+
+/** One row of `/api/v1/fleet/compliance.rows`. Mirrors fleet.ComplianceRow. */
+export interface ComplianceRow {
+  host_id: string;
+  hostname: string | null;
+  last_applied_policy_version: number;
+  server_current_policy_version: number;
+  version_drift: number;
+  policy_expired_active: boolean;
+  last_policy_reload_ts: string | null;
+  signature_failures_24h: number;
+}
+
+export interface CompliancePage {
+  rows: ComplianceRow[];
+  next_cursor: string | null;
+}
+
+export interface ComplianceParams {
+  cursor?: string;
+  limit?: number;
+}
+
+export function fleetCompliance(params: ComplianceParams = {}): Promise<CompliancePage> {
+  const q = new URLSearchParams();
+  if (params.cursor) q.set('cursor', params.cursor);
+  if (typeof params.limit === 'number') q.set('limit', String(params.limit));
+  const s = q.toString();
+  return api<CompliancePage>(`/fleet/compliance${s ? `?${s}` : ''}`);
+}
+
+// -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
 
