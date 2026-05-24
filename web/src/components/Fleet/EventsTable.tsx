@@ -1,6 +1,7 @@
-import { formatDistanceToNowStrict } from 'date-fns';
 import { type EventWithTriage, extractAiGuard } from '@/api/fleet';
-import { humanTool } from '@/lib/labels';
+import { SkeletonRows } from '@/components/Fleet/SkeletonRows';
+import { humanKind, humanTool } from '@/lib/labels';
+import { relativeAge } from '@/lib/time';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -11,14 +12,7 @@ interface Props {
 /** Fleet-wide event timeline (UI/UX §5.2 Events tab). No triage columns. */
 export function EventsTable({ rows, isPending }: Props) {
   if (isPending) {
-    return (
-      <div aria-hidden className="space-y-2 px-3 py-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholders
-          <div key={i} className="h-3 w-full animate-pulse rounded bg-bg-elevated" />
-        ))}
-      </div>
-    );
+    return <SkeletonRows count={6} />;
   }
   if (rows.length === 0) {
     return (
@@ -56,7 +50,7 @@ export function EventsTable({ rows, isPending }: Props) {
                   )}
                 />
               </td>
-              <td className="px-3 py-2 font-mono text-text-muted">{relAge(ev.ts)}</td>
+              <td className="px-3 py-2 font-mono text-text-muted">{relativeAge(ev.ts)}</td>
               <td className="px-3 py-2 text-text-primary">{humanKind(ev.evidence?.kind ?? '')}</td>
               <td className="px-3 py-2 font-mono text-text-muted" title={ev.host_id}>
                 {ev.host_id.split('-')[0]}
@@ -68,19 +62,4 @@ export function EventsTable({ rows, isPending }: Props) {
       </tbody>
     </table>
   );
-}
-
-function relAge(ts: string): string {
-  try {
-    return formatDistanceToNowStrict(new Date(ts));
-  } catch {
-    return '—';
-  }
-}
-
-function humanKind(kind: string): string {
-  return kind
-    .split('_')
-    .map((s) => (s.length ? s[0].toUpperCase() + s.slice(1) : s))
-    .join(' ');
 }

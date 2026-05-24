@@ -17,3 +17,11 @@ export function humanTool(tool: string): string {
       return tool;
   }
 }
+
+/** Title-cases a snake_case wire kind/reason string for display, e.g. "policy_reloaded" → "Policy Reloaded". */
+export function humanKind(kind: string): string {
+  return kind
+    .split('_')
+    .map((s) => (s.length ? s[0].toUpperCase() + s.slice(1) : s))
+    .join(' ');
+}
