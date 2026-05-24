@@ -1,6 +1,7 @@
-import { formatDistanceToNowStrict } from 'date-fns';
 import type { ComplianceRow } from '@/api/fleet';
+import { SkeletonRows } from '@/components/Fleet/SkeletonRows';
 import { COMPLIANCE_META, deriveComplianceStatus } from '@/lib/compliance';
+import { relativeAge } from '@/lib/time';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -10,14 +11,7 @@ interface Props {
 
 export function ComplianceTable({ rows, isPending }: Props) {
   if (isPending) {
-    return (
-      <div aria-hidden className="space-y-2 px-3 py-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholders
-          <div key={i} className="h-3 w-full animate-pulse rounded bg-bg-elevated" />
-        ))}
-      </div>
-    );
+    return <SkeletonRows />;
   }
   if (rows.length === 0) {
     return (
@@ -59,17 +53,19 @@ export function ComplianceTable({ rows, isPending }: Props) {
                 )}
               </td>
               <td className="px-3 py-2 font-mono text-text-muted">{row.signature_failures_24h}</td>
-              <td className="px-3 py-2 text-text-muted">
-                {row.last_policy_reload_ts
-                  ? `${formatDistanceToNowStrict(new Date(row.last_policy_reload_ts))} ago`
-                  : '—'}
-              </td>
+              <td className="px-3 py-2 text-text-muted">{reloadCell(row.last_policy_reload_ts)}</td>
             </tr>
           );
         })}
       </tbody>
     </table>
   );
+}
+
+function reloadCell(ts: string | null): string {
+  if (!ts) return '—';
+  const age = relativeAge(ts);
+  return age === '—' ? '—' : `${age} ago`;
 }
 
 function StatusPill({ tone, label }: { tone: 'healthy' | 'degraded' | 'down'; label: string }) {

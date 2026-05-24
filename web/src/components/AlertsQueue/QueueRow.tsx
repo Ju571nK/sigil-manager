@@ -1,6 +1,6 @@
-import { formatDistanceToNowStrict } from 'date-fns';
 import { type EventWithTriage, extractAiGuard } from '@/api/fleet';
-import { humanTool } from '@/lib/labels';
+import { humanKind, humanTool } from '@/lib/labels';
+import { relativeAge } from '@/lib/time';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -31,7 +31,7 @@ export function QueueRow({
 
   const title = computeTitle(event, ag);
   const host = displayHost(event.host_id);
-  const age = formatAge(event.ts);
+  const age = relativeAge(event.ts);
   const triage = event.triage;
 
   return (
@@ -138,14 +138,6 @@ function displayHost(hostID: string): string {
   return hostID.split('-')[0] ?? hostID;
 }
 
-function formatAge(ts: string): string {
-  try {
-    return formatDistanceToNowStrict(new Date(ts), { addSuffix: false });
-  } catch {
-    return '—';
-  }
-}
-
 const KIND_TITLES: Record<string, string> = {
   ai_guard_risk_assessed: 'AI Guard risk',
   host_meta_snapshot: 'Host metadata',
@@ -163,21 +155,7 @@ function computeTitle(ev: EventWithTriage, ag: ReturnType<typeof extractAiGuard>
   if (ag) {
     const tool = humanTool(ag.tool);
     const reason = ag.reasons?.[0]?.kind;
-    return reason ? `AI Guard risk: ${humanReason(reason)} · ${tool}` : `AI Guard risk · ${tool}`;
+    return reason ? `AI Guard risk: ${humanKind(reason)} · ${tool}` : `AI Guard risk · ${tool}`;
   }
   return KIND_TITLES[ev.evidence?.kind] ?? humanKind(ev.evidence?.kind ?? 'unknown');
-}
-
-function humanReason(kind: string): string {
-  return kind
-    .split('_')
-    .map((s) => (s.length ? s[0].toUpperCase() + s.slice(1) : s))
-    .join(' ');
-}
-
-function humanKind(kind: string): string {
-  return kind
-    .split('_')
-    .map((s) => (s.length ? s[0].toUpperCase() + s.slice(1) : s))
-    .join(' ');
 }

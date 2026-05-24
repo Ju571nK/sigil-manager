@@ -1,4 +1,5 @@
 import type { RiskRow } from '@/api/fleet';
+import { SkeletonRows } from '@/components/Fleet/SkeletonRows';
 import { humanTool } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
@@ -81,15 +82,4 @@ function bucketBarColor(bucket: string): string {
     default:
       return 'bg-sev-info';
   }
-}
-
-function SkeletonRows() {
-  return (
-    <div aria-hidden className="space-y-2 px-3 py-3">
-      {Array.from({ length: 5 }).map((_, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholders
-        <div key={i} className="h-3 w-full animate-pulse rounded bg-bg-elevated" />
-      ))}
-    </div>
-  );
 }
