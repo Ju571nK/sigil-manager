@@ -132,6 +132,22 @@ func (s *Server) handleFleetCompliance(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, page)
 }
 
+// handleFleetHostByID is a pass-through to FleetClient.FleetHostByID (§5.4).
+// A 404 (host_id not in the server's in-memory index) maps via mapFleetErr.
+func (s *Server) handleFleetHostByID(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "host_id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "host_id required")
+		return
+	}
+	host, err := s.Fleet.FleetHostByID(r.Context(), id)
+	if err != nil {
+		mapFleetErr(w, err)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, host)
+}
+
 // parseRiskParams translates the public query string into a
 // [fleet.RiskParams] (§5.5). `tool` is a comma list; `min_bucket` is
 // relayed as-is (the client clamps unknown values).

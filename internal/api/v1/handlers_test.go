@@ -339,6 +339,37 @@ func TestHandleFleetCompliance_PassThroughRawSignals(t *testing.T) {
 	require.NotContains(t, string(body), `"status"`)
 }
 
+func TestFleet_HostByID_Passthrough(t *testing.T) {
+	h := newHarness(t)
+	c := h.loginCookie()
+	// alice-mbp — the mock seeds host_meta + current_risk + ai_guard for it.
+	code, body, _ := h.do(http.MethodGet, "/fleet/hosts/5a7c3e91-aaaa-bbbb-cccc-111111111111", nil, c)
+	require.Equal(t, http.StatusOK, code)
+
+	var hd struct {
+		HostID   string          `json:"host_id"`
+		Hostname string          `json:"hostname"`
+		HostMeta json.RawMessage `json:"host_meta"`
+		AiGuard  *struct {
+			ByTool map[string]json.RawMessage `json:"by_tool"`
+		} `json:"ai_guard"`
+	}
+	require.NoError(t, json.Unmarshal(body, &hd))
+	assert.Equal(t, "5a7c3e91-aaaa-bbbb-cccc-111111111111", hd.HostID)
+	assert.Equal(t, "alice-mbp", hd.Hostname)
+	assert.NotNil(t, hd.HostMeta, "alice has a HostMetaSnapshot")
+	require.NotNil(t, hd.AiGuard)
+	assert.Contains(t, hd.AiGuard.ByTool, "claude_code")
+}
+
+func TestFleet_HostByID_NotFound(t *testing.T) {
+	h := newHarness(t)
+	c := h.loginCookie()
+	code, body, _ := h.do(http.MethodGet, "/fleet/hosts/00000000-0000-0000-0000-000000000000", nil, c)
+	require.Equal(t, http.StatusNotFound, code)
+	assert.Contains(t, string(body), "not_found")
+}
+
 // -----------------------------------------------------------------------------
 // /triage
 // -----------------------------------------------------------------------------
