@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { humanKind, humanTool } from './labels';
+import { humanKind, humanTool, shortPath } from './labels';
 
 describe('humanTool', () => {
   it('maps the six known tool wire strings to display names', () => {
@@ -32,5 +32,18 @@ describe('humanKind', () => {
 
   it('preserves empty segments from leading/double underscores', () => {
     expect(humanKind('a__b')).toBe('A  B');
+  });
+});
+
+describe('shortPath', () => {
+  it('returns short paths (≤2 non-empty segments) unchanged', () => {
+    expect(shortPath('etc/hosts')).toBe('etc/hosts');
+    expect(shortPath('/etc/hosts')).toBe('/etc/hosts');
+    expect(shortPath('foo')).toBe('foo');
+  });
+
+  it('truncates long paths to "…/" plus the last two segments', () => {
+    expect(shortPath('/home/user/project/src/index.ts')).toBe('…/src/index.ts');
+    expect(shortPath('a/b/c')).toBe('…/b/c');
   });
 });
