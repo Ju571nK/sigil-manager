@@ -25,3 +25,10 @@ export function humanKind(kind: string): string {
     .map((s) => (s.length ? s[0].toUpperCase() + s.slice(1) : s))
     .join(' ');
 }
+
+/** Collapses a long filesystem path to "…/last/two" segments; short paths (≤2 segments) pass through unchanged. */
+export function shortPath(p: string): string {
+  const parts = p.split('/').filter(Boolean);
+  if (parts.length <= 2) return p;
+  return `…/${parts.slice(-2).join('/')}`;
+}
