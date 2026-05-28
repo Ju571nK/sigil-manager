@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import type { ComplianceRow } from '@/api/fleet';
 import { CompliancePill } from '@/components/CompliancePill';
 import { SkeletonRows } from '@/components/Fleet/SkeletonRows';
@@ -37,7 +38,13 @@ export function ComplianceTable({ rows, isPending }: Props) {
           return (
             <tr key={row.host_id} className="border-b border-border-subtle">
               <td className="px-3 py-2 font-mono text-text-primary" title={row.host_id}>
-                {row.hostname ?? row.host_id.split('-')[0]}
+                <Link
+                  to="/hosts/$hostId"
+                  params={{ hostId: row.host_id }}
+                  className="hover:text-accent hover:underline"
+                >
+                  {row.hostname ?? row.host_id.split('-')[0]}
+                </Link>
               </td>
               <td className="px-3 py-2">
                 <CompliancePill status={status} />

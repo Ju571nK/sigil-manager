@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { type EventWithTriage, extractAiGuard } from '@/api/fleet';
 import { SkeletonRows } from '@/components/Fleet/SkeletonRows';
 import { humanKind, humanTool } from '@/lib/labels';
@@ -53,7 +54,13 @@ export function EventsTable({ rows, isPending }: Props) {
               <td className="px-3 py-2 font-mono text-text-muted">{relativeAge(ev.ts)}</td>
               <td className="px-3 py-2 text-text-primary">{humanKind(ev.evidence?.kind ?? '')}</td>
               <td className="px-3 py-2 font-mono text-text-muted" title={ev.host_id}>
-                {ev.host_id.split('-')[0]}
+                <Link
+                  to="/hosts/$hostId"
+                  params={{ hostId: ev.host_id }}
+                  className="hover:text-accent hover:underline"
+                >
+                  {ev.host_id.split('-')[0]}
+                </Link>
               </td>
               <td className="px-3 py-2 text-text-muted">{ag ? humanTool(ag.tool) : '—'}</td>
             </tr>
