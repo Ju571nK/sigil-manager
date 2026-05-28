@@ -257,7 +257,9 @@ export interface ToolAiGuard {
   assessed_ts: string;
   is_reattestation: boolean;
   scope: Scope;
-  reasons: ReasonLike[];
+  // Nullable on the wire: a Go nil reasons slice serializes to `null`, so a
+  // tool with no reasons arrives as null, not []. Consumers must guard.
+  reasons: ReasonLike[] | null;
 }
 
 /** Per-tool current risk rollup embedded in current_risk (§5.4). */

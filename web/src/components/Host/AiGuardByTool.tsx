@@ -76,7 +76,7 @@ function ToolCard({ tool, t }: { tool: string; t: ToolAiGuard }) {
         <span className="text-text-subtle">{scopeLabel(t.scope)}</span>
         {t.is_reattestation && <span className="text-text-subtle">· re-attested</span>}
       </div>
-      {t.reasons.length > 0 && (
+      {t.reasons && t.reasons.length > 0 && (
         <div className="mt-2 text-xs">
           <ReasonList reasons={t.reasons} />
         </div>
