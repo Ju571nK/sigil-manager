@@ -81,4 +81,32 @@ test.describe('fleet pages', () => {
     const after = await page.locator('tbody tr').count();
     expect(after).toBeLessThan(before);
   });
+
+  test('clicking a hostname opens the host detail page', async ({ page }) => {
+    await login(page);
+    await page.goto('/fleet/risk');
+    // alice-mbp is a risk row; its hostname cell is now a link.
+    await page.getByRole('link', { name: /alice/ }).first().click();
+    await expect(page).toHaveURL(/\/hosts\/5a7c3e91-aaaa-bbbb-cccc-111111111111/);
+    // Header + AI Guard block render. Scope "AI Guard risk" to the section
+    // heading — the literal also appears as "Ai Guard Risk Assessed" event-kind
+    // cells in the Recent Events table below (strict-mode would match both).
+    await expect(page.getByRole('heading', { name: /alice-mbp/ })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: /AI Guard risk/i })).toBeVisible();
+    await expect(page.getByText(/claude code/i).first()).toBeVisible();
+  });
+
+  test('host detail shows metadata + per-host events', async ({ page }) => {
+    await login(page);
+    await page.goto('/hosts/5a7c3e91-aaaa-bbbb-cccc-111111111111');
+    await expect(page.getByText(/Host metadata/i)).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText(/Policy & agent health/i)).toBeVisible();
+    await expect(page.getByText(/Recent events/i)).toBeVisible();
+  });
+
+  test('unknown host id shows the not-found panel', async ({ page }) => {
+    await login(page);
+    await page.goto('/hosts/00000000-0000-0000-0000-000000000000');
+    await expect(page.getByText(/Host not found/i)).toBeVisible({ timeout: 5_000 });
+  });
 });
