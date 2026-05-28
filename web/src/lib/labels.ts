@@ -1,3 +1,5 @@
+import type { Scope } from '@/api/fleet';
+
 /** Maps an AI-tool wire string (contract §14.5/§14.7) to a display name. */
 export function humanTool(tool: string): string {
   switch (tool) {
@@ -31,4 +33,13 @@ export function shortPath(p: string): string {
   const parts = p.split('/').filter(Boolean);
   if (parts.length <= 2) return p;
   return `…/${parts.slice(-2).join('/')}`;
+}
+
+/** Humanizes an AI Guard scope (§14.5) for display: "project · …/path",
+ *  "app · name", or "user global". Shared by the alerts SlideOver and the
+ *  host-detail AI Guard block so the rendering can't diverge. */
+export function scopeLabel(scope: Scope): string {
+  if (scope.kind === 'project') return `project · ${shortPath(scope.path)}`;
+  if (scope.kind === 'application') return `app · ${scope.app}`;
+  return 'user global';
 }
