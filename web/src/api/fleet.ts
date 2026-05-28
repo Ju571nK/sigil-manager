@@ -213,6 +213,88 @@ export function fleetCompliance(params: ComplianceParams = {}): Promise<Complian
 }
 
 // -----------------------------------------------------------------------------
+// Host detail (/fleet/hosts/{host_id} — contract §5.4)
+// -----------------------------------------------------------------------------
+
+export interface NetInterface {
+  name: string;
+  mac: string | null;
+  ipv4: string[];
+  ipv6: string[];
+}
+
+export interface HostMeta {
+  os_name: string;
+  os_version: string;
+  kernel_version: string;
+  architecture: string;
+  interfaces: NetInterface[];
+  default_gateway_v4: string | null;
+  default_gateway_v6: string | null;
+  dns_servers: string[];
+}
+
+export interface PolicyState {
+  last_applied_policy_version: number;
+  policy_expired_active: boolean;
+  last_policy_reload_ts: string | null;
+}
+
+export interface AgentHealth {
+  recent_channel_stalls_24h: number;
+  recent_watcher_degraded_24h: number;
+  recent_sender_lag_critical_24h: number;
+  last_heartbeat_ts: string | null;
+  hash_p99_ms_latest: number | null;
+  jsonl_above_soft_floor_latest: boolean | null;
+}
+
+/** One per-tool AI Guard rollup (§5.4 ai_guard.by_tool). Same reason/scope
+ * shapes as AiGuardEvidence, so it reuses ReasonLike/Scope. */
+export interface ToolAiGuard {
+  score: number;
+  bucket: 'low' | 'medium' | 'high' | 'critical' | string;
+  assessed_ts: string;
+  is_reattestation: boolean;
+  scope: Scope;
+  // Nullable on the wire: a Go nil reasons slice serializes to `null`, so a
+  // tool with no reasons arrives as null, not []. Consumers must guard.
+  reasons: ReasonLike[] | null;
+}
+
+/** Per-tool current risk rollup embedded in current_risk (§5.4). */
+export interface ToolRisk {
+  score: number;
+  bucket: 'low' | 'medium' | 'high' | 'critical' | string;
+  assessed_ts: string;
+}
+
+export interface CurrentRisk {
+  max_score: number;
+  max_bucket: 'low' | 'medium' | 'high' | 'critical' | string;
+  by_tool: Record<string, ToolRisk>;
+}
+
+/** Body of GET /fleet/hosts/{host_id} (§5.4): HostSummary + 4 nullable blocks. */
+export interface HostDetail {
+  host_id: string;
+  hostname: string | null;
+  agent_version: string;
+  last_seen_ts: string;
+  status: 'healthy' | 'stale' | 'disconnected' | string;
+  current_risk: CurrentRisk | null;
+  open_event_counts_24h: Record<string, number>;
+  host_meta: HostMeta | null;
+  policy_state: PolicyState | null;
+  agent_health: AgentHealth | null;
+  ai_guard: { by_tool: Record<string, ToolAiGuard> } | null;
+}
+
+export function fleetHost(hostId: string): Promise<HostDetail> {
+  return api<HostDetail>(`/fleet/hosts/${encodeURIComponent(hostId)}`);
+}
+
+// -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
 
