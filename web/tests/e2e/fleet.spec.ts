@@ -109,4 +109,13 @@ test.describe('fleet pages', () => {
     await page.goto('/hosts/00000000-0000-0000-0000-000000000000');
     await expect(page.getByText(/Host not found/i)).toBeVisible({ timeout: 5_000 });
   });
+
+  test('a disconnected null-heavy host renders without crashing', async ({ page }) => {
+    await login(page);
+    // dave-vm: hostname null, no host_meta / ai_guard / agent_health — the
+    // null-tolerance path (this is where the null-reasons crash first hid).
+    await page.goto('/hosts/5a7c3e91-aaaa-bbbb-cccc-444444444444');
+    await expect(page.getByText(/No AI Guard assessments yet/i)).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText(/No host metadata reported yet/i)).toBeVisible();
+  });
 });
