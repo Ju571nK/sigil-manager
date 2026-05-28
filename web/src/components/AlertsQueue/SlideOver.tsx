@@ -15,7 +15,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { useAppendNote, useTriageDetailOrNull, useUpsertTriage } from '@/hooks/useTriage';
-import { humanKind, humanTool, shortPath } from '@/lib/labels';
+import { humanKind, humanTool, scopeLabel } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -174,7 +174,7 @@ function SlideOverBody({
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] uppercase tracking-wide">
           <Badge tone="severity">{bucket}</Badge>
           <Badge tone="status">{status}</Badge>
-          {ag?.scope.kind && <Badge tone="muted">{scopeLabel(ag)}</Badge>}
+          {ag?.scope.kind && <Badge tone="muted">{scopeLabel(ag.scope)}</Badge>}
         </div>
       </div>
 
@@ -443,13 +443,6 @@ function relativeOrEmpty(ts: string): string {
   } catch {
     return '';
   }
-}
-
-function scopeLabel(ag: NonNullable<ReturnType<typeof extractAiGuard>>): string {
-  const scope = ag.scope;
-  if (scope.kind === 'project') return `project · ${shortPath(scope.path)}`;
-  if (scope.kind === 'application') return `app · ${scope.app}`;
-  return 'user_global';
 }
 
 // Re-export the search icon so future callers can share the bare-bones
