@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import type { RiskRow } from '@/api/fleet';
 import { SkeletonRows } from '@/components/Fleet/SkeletonRows';
 import { humanTool } from '@/lib/labels';
@@ -43,7 +44,13 @@ export function RiskTable({ rows, isPending }: Props) {
               <RiskBar bucket={row.bucket} score={row.score} />
             </td>
             <td className="px-3 py-2 font-mono text-text-primary" title={row.host_id}>
-              {row.hostname ?? row.host_id.split('-')[0]}
+              <Link
+                to="/hosts/$hostId"
+                params={{ hostId: row.host_id }}
+                className="hover:text-accent hover:underline"
+              >
+                {row.hostname ?? row.host_id.split('-')[0]}
+              </Link>
             </td>
             <td className="px-3 py-2 font-mono">{row.score.toFixed(1)}</td>
             <td className="px-3 py-2 text-text-muted">{humanTool(row.top_tool)}</td>
