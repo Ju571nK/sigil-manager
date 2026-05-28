@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { NotFoundError } from '@/api/client';
+import { EventsTable } from '@/components/Fleet/EventsTable';
 import { AiGuardByTool } from '@/components/Host/AiGuardByTool';
 import { HostHeader } from '@/components/Host/HostHeader';
 import { HostMetaCard } from '@/components/Host/HostMetaCard';
 import { PolicyHealthCard } from '@/components/Host/PolicyHealthCard';
 import { useFleetCompliance } from '@/hooks/useFleetCompliance';
+import { useFleetEvents } from '@/hooks/useFleetEvents';
 import { useFleetHost } from '@/hooks/useFleetHost';
 import { deriveComplianceStatus } from '@/lib/compliance';
 
@@ -26,6 +28,8 @@ function HostDetailPage() {
   const compliance = useFleetCompliance();
   const row = compliance.rows.find((r) => r.host_id === hostId);
   const status = row ? deriveComplianceStatus(row) : undefined;
+
+  const events = useFleetEvents({ evidenceKinds: [], hostIDs: [hostId], since: null });
 
   if (error instanceof NotFoundError) {
     return <NotFoundPanel hostId={hostId} />;
@@ -66,7 +70,29 @@ function HostDetailPage() {
           signatureFailures24h={row?.signature_failures_24h}
         />
       </div>
-      {/* T8: per-host events section */}
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
+            Recent events
+          </h2>
+          <Link
+            to="/fleet/events"
+            search={{ host: [hostId] }}
+            className="text-xs text-text-muted hover:text-text-primary"
+          >
+            see all in Fleet Events ▸
+          </Link>
+        </div>
+        <div className="overflow-hidden rounded-md border border-border bg-bg-surface">
+          {events.error ? (
+            <div className="px-4 py-6 text-sm text-sev-critical">
+              Failed to load events: {events.error.message}
+            </div>
+          ) : (
+            <EventsTable rows={events.rows} isPending={events.isPending} />
+          )}
+        </div>
+      </section>
     </div>
   );
 }
