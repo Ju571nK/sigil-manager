@@ -2,6 +2,8 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { NotFoundError } from '@/api/client';
 import { AiGuardByTool } from '@/components/Host/AiGuardByTool';
 import { HostHeader } from '@/components/Host/HostHeader';
+import { HostMetaCard } from '@/components/Host/HostMetaCard';
+import { PolicyHealthCard } from '@/components/Host/PolicyHealthCard';
 import { useFleetCompliance } from '@/hooks/useFleetCompliance';
 import { useFleetHost } from '@/hooks/useFleetHost';
 import { deriveComplianceStatus } from '@/lib/compliance';
@@ -56,7 +58,14 @@ function HostDetailPage() {
         compliance={status}
       />
       <AiGuardByTool byTool={host.ai_guard?.by_tool ?? {}} />
-      {/* T7: <div className="grid gap-3 md:grid-cols-2"> HostMetaCard | PolicyHealthCard </div> */}
+      <div className="mb-4 grid gap-3 md:grid-cols-2">
+        <HostMetaCard meta={host.host_meta} />
+        <PolicyHealthCard
+          policy={host.policy_state}
+          health={host.agent_health}
+          signatureFailures24h={row?.signature_failures_24h}
+        />
+      </div>
       {/* T8: per-host events section */}
     </div>
   );
