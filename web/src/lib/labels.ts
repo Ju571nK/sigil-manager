@@ -28,8 +28,9 @@ export function humanKind(kind: string): string {
     .join(' ');
 }
 
-/** Collapses a long filesystem path to "…/last/two" segments; short paths (≤2 segments) pass through unchanged. */
-export function shortPath(p: string): string {
+/** Collapses a long filesystem path to "…/last/two" segments; short paths (≤2 segments) pass through unchanged. Empty/missing → "". */
+export function shortPath(p: string | null | undefined): string {
+  if (!p) return '';
   const parts = p.split('/').filter(Boolean);
   if (parts.length <= 2) return p;
   return `…/${parts.slice(-2).join('/')}`;
@@ -37,8 +38,10 @@ export function shortPath(p: string): string {
 
 /** Humanizes an AI Guard scope (§14.5) for display: "project · …/path",
  *  "app · name", or "user global". Shared by the alerts SlideOver and the
- *  host-detail AI Guard block so the rendering can't diverge. */
-export function scopeLabel(scope: Scope): string {
+ *  host-detail AI Guard block so the rendering can't diverge. Tolerates a
+ *  null/absent scope and a project scope missing its `path` (omitempty wire). */
+export function scopeLabel(scope: Scope | null | undefined): string {
+  if (!scope) return '—';
   if (scope.kind === 'project') return `project · ${shortPath(scope.path)}`;
   if (scope.kind === 'application') return `app · ${scope.app}`;
   return 'user global';

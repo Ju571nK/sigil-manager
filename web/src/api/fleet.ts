@@ -216,11 +216,13 @@ export function fleetCompliance(params: ComplianceParams = {}): Promise<Complian
 // Host detail (/fleet/hosts/{host_id} — contract §5.4)
 // -----------------------------------------------------------------------------
 
+// Array fields are Go slices on the wire — a nil slice marshals to JSON null,
+// not [], so every array here is nullable and consumers must guard.
 export interface NetInterface {
   name: string;
   mac: string | null;
-  ipv4: string[];
-  ipv6: string[];
+  ipv4: string[] | null;
+  ipv6: string[] | null;
 }
 
 export interface HostMeta {
@@ -228,10 +230,10 @@ export interface HostMeta {
   os_version: string;
   kernel_version: string;
   architecture: string;
-  interfaces: NetInterface[];
+  interfaces: NetInterface[] | null;
   default_gateway_v4: string | null;
   default_gateway_v6: string | null;
-  dns_servers: string[];
+  dns_servers: string[] | null;
 }
 
 export interface PolicyState {

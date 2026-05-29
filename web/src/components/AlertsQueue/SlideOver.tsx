@@ -165,7 +165,9 @@ function SlideOverBody({
       <div className="border-b border-border-subtle px-5 py-3">
         <SheetHeader className="p-0">
           <SheetTitle className="text-base font-semibold text-text-primary">
-            {ag ? `AI Guard risk · ${humanTool(ag.tool)}` : humanKind(event.evidence.kind)}
+            {ag
+              ? `AI Guard risk · ${humanTool(ag.tool)}`
+              : humanKind(event.evidence?.kind ?? 'unknown')}
           </SheetTitle>
           <SheetDescription className="text-xs text-text-muted">
             event_id <code className="font-mono">{event.event_id}</code>
@@ -174,7 +176,7 @@ function SlideOverBody({
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] uppercase tracking-wide">
           <Badge tone="severity">{bucket}</Badge>
           <Badge tone="status">{status}</Badge>
-          {ag?.scope.kind && <Badge tone="muted">{scopeLabel(ag.scope)}</Badge>}
+          {ag?.scope?.kind && <Badge tone="muted">{scopeLabel(ag.scope)}</Badge>}
         </div>
       </div>
 
