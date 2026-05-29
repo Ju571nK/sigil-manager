@@ -15,13 +15,13 @@ export function HostMetaCard({ meta }: { meta: HostMeta | null }) {
           <Row label="Kernel">{meta.kernel_version}</Row>
           <Row label="Arch">{meta.architecture}</Row>
           <Row label="Gateway">{meta.default_gateway_v4 ?? '—'}</Row>
-          <Row label="DNS">{meta.dns_servers.length ? meta.dns_servers.join(', ') : '—'}</Row>
+          <Row label="DNS">{meta.dns_servers?.length ? meta.dns_servers.join(', ') : '—'}</Row>
           <Row label="Interfaces">
             <ul className="space-y-0.5">
-              {meta.interfaces.map((i) => (
+              {(meta.interfaces ?? []).map((i) => (
                 <li key={i.name} className="font-mono">
                   {i.name}
-                  {i.ipv4.length > 0 && (
+                  {i.ipv4 && i.ipv4.length > 0 && (
                     <span className="text-text-subtle"> · {i.ipv4.join(', ')}</span>
                   )}
                   {i.mac && <span className="text-text-subtle"> · {i.mac}</span>}
