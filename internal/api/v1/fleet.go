@@ -2,6 +2,7 @@ package v1
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -260,11 +261,17 @@ func mapFleetErr(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusServiceUnavailable, "service_unavailable",
 			"sigil-server is rebuilding its index, retry shortly")
 	default:
+		// Log the detailed error server-side for operators, but never relay it
+		// to the SPA: a transport error wraps a *url.Error carrying the full
+		// sigil-server URL, and the APIError fallback can hold the raw upstream
+		// body. Keep the invariant that the SPA never sees sigil-server URLs.
+		log.Printf("fleet: upstream request failed: %v", err)
 		var apiErr *fleet.APIError
 		if errors.As(err, &apiErr) {
-			writeError(w, http.StatusBadGateway, "upstream_error", apiErr.Error())
+			writeError(w, http.StatusBadGateway, "upstream_error",
+				"sigil-server returned an error ("+apiErr.Code+")")
 			return
 		}
-		writeError(w, http.StatusBadGateway, "upstream_error", err.Error())
+		writeError(w, http.StatusBadGateway, "upstream_error", "request to sigil-server failed")
 	}
 }
