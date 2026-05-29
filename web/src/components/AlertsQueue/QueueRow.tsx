@@ -1,5 +1,6 @@
 import { type EventWithTriage, extractAiGuard } from '@/api/fleet';
 import { humanKind, humanTool } from '@/lib/labels';
+import { bucketTextColor } from '@/lib/severity';
 import { relativeAge } from '@/lib/time';
 import { cn } from '@/lib/utils';
 
@@ -58,7 +59,7 @@ export function QueueRow({
       <span className="truncate font-mono text-text-muted" title={event.host_id}>
         {host}
       </span>
-      <span className={cn('uppercase tracking-wide font-medium', bucketColor(bucket))}>
+      <span className={cn('uppercase tracking-wide font-medium', bucketTextColor(bucket))}>
         {bucket}
       </span>
       <StatusPill status={triage?.status ?? 'open'} hasTriage={!!triage} />
@@ -68,7 +69,7 @@ export function QueueRow({
 }
 
 function SeverityDot({ bucket }: { bucket: string }) {
-  const color = bucketColor(bucket).replace('text-', 'bg-');
+  const color = bucketTextColor(bucket).replace('text-', 'bg-');
   return (
     <span
       className={cn('inline-block h-2 w-2 rounded-full', color, {
@@ -109,21 +110,6 @@ function statusColor(status: 'open' | 'acknowledged' | 'investigating' | 'resolv
       return 'text-accent border-accent/40 bg-accent/10';
     case 'resolved':
       return 'text-status-healthy border-status-healthy/40 bg-status-healthy/10';
-  }
-}
-
-function bucketColor(bucket: string): string {
-  switch (bucket) {
-    case 'critical':
-      return 'text-sev-critical';
-    case 'high':
-      return 'text-sev-high';
-    case 'medium':
-      return 'text-sev-medium';
-    case 'low':
-      return 'text-sev-low';
-    default:
-      return 'text-sev-info';
   }
 }
 
