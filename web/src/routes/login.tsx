@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { createFileRoute, redirect, useNavigate, useSearch } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 import { type LoginResponse, login, me } from '@/api/auth';
-import { UnauthorizedError } from '@/api/client';
+import { SessionExpiredError, UnauthorizedError } from '@/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,8 +27,8 @@ export const Route = createFileRoute('/login')({
       // Already authed — go where they were headed (or /alerts).
       throw redirect({ to: search.redirect ?? '/alerts' });
     } catch (err) {
-      // me() throwing means not authed; show the form.
-      if (err instanceof UnauthorizedError) return;
+      // me() throwing means not authed (no cookie OR an expired one); show the form.
+      if (err instanceof UnauthorizedError || err instanceof SessionExpiredError) return;
       // A `redirect` is itself thrown — let TanStack Router handle it.
       throw err;
     }
