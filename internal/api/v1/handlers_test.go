@@ -2,6 +2,7 @@ package v1
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -477,4 +478,36 @@ func TestRequireAuth_ExpiredCookie_SurfacesSessionExpired(t *testing.T) {
 	code, body, _ := h.do(http.MethodGet, "/auth/me", nil, c)
 	assert.Equal(t, http.StatusUnauthorized, code)
 	assert.Contains(t, string(body), "session_expired", "expired tokens get a distinct error code")
+}
+
+// -----------------------------------------------------------------------------
+// Upstream retry wiring (withFleetRetry)
+// -----------------------------------------------------------------------------
+
+// flakyRiskClient embeds the Mock but fails the first FleetRisk call with a
+// retryable 503, proving the handler's withFleetRetry wiring actually retries.
+// (The retry layer existed but was never wired into handlers — bug hunt M2.)
+type flakyRiskClient struct {
+	*fleet.MockClient
+	riskCalls int
+}
+
+func (f *flakyRiskClient) FleetRisk(ctx context.Context, p fleet.RiskParams) (*fleet.RiskPage, error) {
+	f.riskCalls++
+	if f.riskCalls == 1 {
+		// 1ms Retry-After keeps the test fast while exercising the real backoff.
+		return nil, &fleet.ServiceUnavailableError{RetryAfter: time.Millisecond}
+	}
+	return f.MockClient.FleetRisk(ctx, p)
+}
+
+func TestFleet_Risk_RetriesTransient503(t *testing.T) {
+	h := newHarness(t)
+	flaky := &flakyRiskClient{MockClient: h.mock}
+	h.v1.Fleet = flaky // handlers read s.Fleet at call time
+	c := h.loginCookie()
+
+	code, _, _ := h.do(http.MethodGet, "/fleet/risk", nil, c)
+	assert.Equal(t, http.StatusOK, code, "a transient 503 must be retried, not surfaced")
+	assert.Equal(t, 2, flaky.riskCalls, "expected one failed attempt + one retry")
 }

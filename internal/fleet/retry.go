@@ -11,9 +11,9 @@ import (
 // RetryPolicy controls bounded retry around idempotent fleet GETs.
 //
 // Per Plan 02 T3 step 5: retry ONLY on [ErrServiceUnavailable] (the boot
-// rebuild window, F15) and transient network errors (timeout / connection
-// reset). 401 / 404 / 400 are configuration errors — caller fixes those, no
-// retry.
+// rebuild window, F15) and transient network timeouts. Non-timeout network
+// errors (e.g. connection refused/reset) and 401 / 404 / 400 are terminal —
+// the caller fixes config errors, and a down upstream fails fast.
 type RetryPolicy struct {
 	MaxAttempts int           // default 3 when zero
 	BaseDelay   time.Duration // default 200ms when zero (used for transient net errors)
@@ -64,8 +64,9 @@ func Do[T any](ctx context.Context, p RetryPolicy, fn func(context.Context) (*T,
 	return nil, lastErr
 }
 
-// isRetryable returns true for 503 and transient network errors. Everything
-// else (401, 404, 400, decode errors, ctx canceled) is terminal.
+// isRetryable returns true for 503 and transient network timeouts. Everything
+// else (non-timeout net errors, 401, 404, 400, decode errors, ctx canceled)
+// is terminal.
 func isRetryable(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
