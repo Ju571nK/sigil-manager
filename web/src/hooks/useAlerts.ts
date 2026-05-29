@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { type EventsParams, type EventWithTriage, fleetEvents, fleetMeta } from '@/api/fleet';
 
@@ -71,6 +71,9 @@ export function useAlerts(filter: AlertFilter) {
     queryFn: () => fleetEvents(params),
     refetchInterval: paused ? false : POLL_INTERVAL_MS,
     refetchIntervalInBackground: false,
+    // Keep the current rows visible while a filter change refetches, instead
+    // of blanking the queue to skeleton for a fetch cycle.
+    placeholderData: keepPreviousData,
     // Only start polling once meta has landed so we don't fire two parallel
     // requests with different evidence_kinds.
     enabled: !!meta.data,
