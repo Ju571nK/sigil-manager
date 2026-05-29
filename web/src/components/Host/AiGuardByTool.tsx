@@ -1,6 +1,7 @@
 import type { ToolAiGuard } from '@/api/fleet';
 import { ReasonList } from '@/components/ReasonList';
 import { humanTool, scopeLabel } from '@/lib/labels';
+import { bucketTextColor } from '@/lib/severity';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -70,7 +71,7 @@ function ToolCard({ tool, t }: { tool: string; t: ToolAiGuard }) {
     >
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="font-medium text-text-primary">{humanTool(tool)}</span>
-        <span className={cn('uppercase tracking-wide font-medium', bucketText(t.bucket))}>
+        <span className={cn('uppercase tracking-wide font-medium', bucketTextColor(t.bucket))}>
           {t.bucket} {t.score.toFixed(2)}
         </span>
         <span className="text-text-subtle">{scopeLabel(t.scope)}</span>
@@ -83,21 +84,6 @@ function ToolCard({ tool, t }: { tool: string; t: ToolAiGuard }) {
       )}
     </div>
   );
-}
-
-function bucketText(bucket: string): string {
-  switch (bucket) {
-    case 'critical':
-      return 'text-sev-critical';
-    case 'high':
-      return 'text-sev-high';
-    case 'medium':
-      return 'text-sev-medium';
-    case 'low':
-      return 'text-sev-low';
-    default:
-      return 'text-sev-info';
-  }
 }
 
 function bucketBorder(bucket: string): string {
