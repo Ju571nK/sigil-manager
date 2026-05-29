@@ -74,12 +74,12 @@ test.describe('fleet pages', () => {
     await page.getByRole('button', { name: /^AI Guard$/ }).click();
     // The chip writes the kind filter to the URL (JSON-encoded array)...
     await expect(page).toHaveURL(/ai_guard_risk_assessed/);
-    // ...and the AI-Guard events are a strict, non-empty subset. Poll for the
-    // settled (post-skeleton, >0) row set so we don't sample the 0-row
-    // skeleton frame, then assert a genuine narrowing.
+    // ...and the AI-Guard events are a strict, non-empty subset. Poll until the
+    // count settles BELOW the unfiltered count: keepPreviousData keeps the old
+    // rows visible during the refetch, so we must wait for the narrowed set to
+    // land rather than snapshotting immediately after the click.
+    await expect.poll(async () => page.locator('tbody tr').count()).toBeLessThan(before);
     await expect.poll(async () => page.locator('tbody tr').count()).toBeGreaterThan(0);
-    const after = await page.locator('tbody tr').count();
-    expect(after).toBeLessThan(before);
   });
 
   test('clicking a hostname opens the host detail page', async ({ page }) => {

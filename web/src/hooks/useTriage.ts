@@ -12,12 +12,13 @@ import {
 
 /**
  * Triage hooks for the slide-over. Reads + writes go through TanStack
- * Query so the rest of the SPA (Alerts queue rows in particular) get
- * automatic re-render after every mutation.
+ * Query so the Alerts queue re-renders after every mutation.
  *
- * The queue's `useAlerts` lives under the ['fleet','events'] key tree;
- * mutations here invalidate ['fleet','events'] so the joined `triage`
- * block on each row updates immediately after Ack/Resolve/Assign.
+ * The queue's `useAlerts` lives under the ['fleet','events'] key; mutations
+ * here invalidate it so the joined `triage` block on each row updates after
+ * Ack/Resolve/Assign. NOTE: this does NOT touch ['fleet','events-timeline']
+ * (the fleet Events tab / host page) — by design, since EventsTable renders
+ * no triage column. If a triage column is added there, invalidate it too.
  */
 
 export function useTriageDetail(hostID: string | null, eventID: string | null) {
