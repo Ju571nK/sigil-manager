@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -63,7 +64,9 @@ func (s *Server) handleFleetEvents(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
 		return
 	}
-	page, err := s.Fleet.Events(r.Context(), params)
+	page, err := withFleetRetry(r.Context(), func(ctx context.Context) (*fleet.EventsPage, error) {
+		return s.Fleet.Events(ctx, params)
+	})
 	if err != nil {
 		mapFleetErr(w, err)
 		return
@@ -82,7 +85,9 @@ func (s *Server) handleFleetEventByID(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_query", "event_id required")
 		return
 	}
-	ev, err := s.Fleet.EventByID(r.Context(), id)
+	ev, err := withFleetRetry(r.Context(), func(ctx context.Context) (*fleet.Event, error) {
+		return s.Fleet.EventByID(ctx, id)
+	})
 	if err != nil {
 		mapFleetErr(w, err)
 		return
@@ -103,7 +108,9 @@ func (s *Server) handleFleetRisk(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
 		return
 	}
-	page, err := s.Fleet.FleetRisk(r.Context(), params)
+	page, err := withFleetRetry(r.Context(), func(ctx context.Context) (*fleet.RiskPage, error) {
+		return s.Fleet.FleetRisk(ctx, params)
+	})
 	if err != nil {
 		mapFleetErr(w, err)
 		return
@@ -125,7 +132,9 @@ func (s *Server) handleFleetCompliance(w http.ResponseWriter, r *http.Request) {
 		}
 		params.Limit = n
 	}
-	page, err := s.Fleet.FleetCompliance(r.Context(), params)
+	page, err := withFleetRetry(r.Context(), func(ctx context.Context) (*fleet.CompliancePage, error) {
+		return s.Fleet.FleetCompliance(ctx, params)
+	})
 	if err != nil {
 		mapFleetErr(w, err)
 		return
@@ -141,7 +150,9 @@ func (s *Server) handleFleetHostByID(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_query", "host_id required")
 		return
 	}
-	host, err := s.Fleet.FleetHostByID(r.Context(), id)
+	host, err := withFleetRetry(r.Context(), func(ctx context.Context) (*fleet.HostDetail, error) {
+		return s.Fleet.FleetHostByID(ctx, id)
+	})
 	if err != nil {
 		mapFleetErr(w, err)
 		return
@@ -242,6 +253,15 @@ func splitComma(v string) []string {
 		}
 	}
 	return out
+}
+
+// withFleetRetry wraps an idempotent fleet GET with bounded retry — the F15
+// boot-rebuild window (503) and transient network timeouts (fleet.Do /
+// DefaultRetryPolicy). Only reads are wrapped (the fleet client is read-only).
+// healthz is intentionally NOT wrapped: the connection indicator must reflect
+// a down upstream immediately, not after retries.
+func withFleetRetry[T any](ctx context.Context, fn func(context.Context) (*T, error)) (*T, error) {
+	return fleet.Do(ctx, fleet.DefaultRetryPolicy(), fn)
 }
 
 // mapFleetErr translates a fleet.* error into the public HTTP shape. The
