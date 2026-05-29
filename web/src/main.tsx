@@ -8,7 +8,17 @@ import './index.css';
 import { routeTree } from './routeTree.gen';
 
 const router = createRouter({ routeTree });
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // The app self-refreshes via explicit refetchInterval polling (5s alerts,
+      // 20s fleet, 10s healthz). Window-focus refetch adds nothing on top of
+      // that and actively breaks the alerts hover-pause — an alt-tab away and
+      // back would refetch and reorder the queue under the user's mouse.
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 declare module '@tanstack/react-router' {
   interface Register {
