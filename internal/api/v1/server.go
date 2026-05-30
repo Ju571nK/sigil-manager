@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"time"
+
 	"github.com/go-chi/chi/v5"
 
 	"github.com/Ju571nK/sigil-manager/internal/auth"
@@ -50,8 +52,10 @@ type Server struct {
 func (s *Server) Routes() chi.Router {
 	r := chi.NewRouter()
 
-	// Public.
-	r.Post("/auth/login", s.handleLogin)
+	// Public. Login is per-IP rate-limited (10/min for remote clients; loopback
+	// exempt) to slow online brute force on top of the bcrypt + fail-delay.
+	loginLimiter := newRateLimiter(10, time.Minute)
+	r.With(loginLimiter.middleware).Post("/auth/login", s.handleLogin)
 
 	// Authenticated.
 	r.Group(func(r chi.Router) {
