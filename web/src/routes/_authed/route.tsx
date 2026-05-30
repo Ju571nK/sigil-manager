@@ -14,11 +14,15 @@ import { TopNav } from '@/components/Layout/TopNav';
  * URL in `?redirect=` so post-login we can land back where we started.
  */
 export const Route = createFileRoute('/_authed')({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async ({ location, context }) => {
     try {
       await me();
     } catch (err) {
       if (err instanceof UnauthorizedError || err instanceof SessionExpiredError) {
+        // Drop the previous session's cached fleet/triage data before bouncing
+        // to /login, so the next login can't briefly render stale data from a
+        // prior session's cache (gcTime keeps it ~5min otherwise).
+        context.queryClient.clear();
         throw redirect({
           to: '/login',
           search: { redirect: location.href },
