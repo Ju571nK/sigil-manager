@@ -64,12 +64,19 @@ function AlertsPage() {
   const search = useSearch({ from: '/_authed/alerts' });
   const navigate = useNavigate();
 
-  const filter: AlertFilter = {
-    minBucket: search.minBucket ?? DEFAULT_FILTER.minBucket,
-    triageStatuses: search.triageStatuses ?? DEFAULT_FILTER.triageStatuses,
-    since: search.since ?? DEFAULT_FILTER.since,
-    query: search.query ?? DEFAULT_FILTER.query,
-  };
+  // Memoize so the filter object keeps a stable identity across renders (search
+  // params are structurally shared by the router, so these deps only change on a
+  // real URL change). Downstream useMemo(applyClientFilter) + the selected/visible
+  // memos depend on this object, so an unstable ref would recompute every render.
+  const filter: AlertFilter = useMemo(
+    () => ({
+      minBucket: search.minBucket ?? DEFAULT_FILTER.minBucket,
+      triageStatuses: search.triageStatuses ?? DEFAULT_FILTER.triageStatuses,
+      since: search.since ?? DEFAULT_FILTER.since,
+      query: search.query ?? DEFAULT_FILTER.query,
+    }),
+    [search.minBucket, search.triageStatuses, search.since, search.query],
+  );
 
   const sort: SortMode = search.sort ?? 'severity_desc';
   const selectedAlertID = search.alert ?? null;
