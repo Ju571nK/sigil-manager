@@ -223,6 +223,13 @@ function SlideOverBody({
               Reopen
             </ActionButton>
           </div>
+          {/* Triage writes are easy to miss when they fail (a flaky upstream,
+              a 409, etc.) — surface it inline so the action isn't silently
+              dropped. The same `upsert` backs the status buttons and the
+              assignee form below. */}
+          {upsert.isError && (
+            <InlineError>Could not save the change — {mutationErrorText(upsert.error)}</InlineError>
+          )}
         </section>
 
         {/* Assignee */}
@@ -297,6 +304,11 @@ function SlideOverBody({
                 {appendNote.isPending ? 'Sending…' : 'Add note'}
               </Button>
             </div>
+            {appendNote.isError && (
+              <InlineError>
+                Could not add the note — {mutationErrorText(appendNote.error)}
+              </InlineError>
+            )}
           </form>
         </section>
 
@@ -385,6 +397,22 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
       <dd className="text-text-body min-w-0">{children}</dd>
     </>
   );
+}
+
+/** Inline, assertive error line for a failed triage write. */
+function InlineError({ children }: { children: React.ReactNode }) {
+  return (
+    <p role="alert" className="mt-2 text-xs text-sev-critical">
+      {children}
+    </p>
+  );
+}
+
+/** Safe display message for a failed mutation. ApiError subclasses carry a
+ *  consumer-safe `.message` (the server already strips upstream URLs); anything
+ *  else falls back to a generic line. */
+function mutationErrorText(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : 'please try again';
 }
 
 function Badge({
