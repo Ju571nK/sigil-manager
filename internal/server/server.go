@@ -20,6 +20,7 @@ func NewRouter(v1Server *apiv1.Server) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(securityHeaders)
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/health", api.HealthHandler)
