@@ -40,6 +40,10 @@ type Config struct {
 
 	// Informational (consumed by SPA via /api/v1/meta, not the server core)
 	FleetPollInterval time.Duration // FLEET_POLL_INTERVAL_SECONDS, default 5s
+
+	// Fleet read cache (decouples browser fan-out from sigil-server load).
+	FleetCacheDisabled   bool // FLEET_CACHE_DISABLED=1 → pass-through, no cache
+	FleetCacheMaxEntries int  // FLEET_CACHE_MAX_ENTRIES, default 512
 }
 
 // IsMockFleet reports whether the operator opted into the in-process mock
@@ -90,6 +94,13 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	c.FleetPollInterval = time.Duration(pollSeconds) * time.Second
+
+	c.FleetCacheDisabled = os.Getenv("FLEET_CACHE_DISABLED") == "1"
+	maxEntries, err := intDefault("FLEET_CACHE_MAX_ENTRIES", 512)
+	if err != nil {
+		return nil, err
+	}
+	c.FleetCacheMaxEntries = maxEntries
 
 	if err := c.validate(); err != nil {
 		return nil, err

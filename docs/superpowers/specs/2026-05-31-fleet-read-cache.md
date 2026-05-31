@@ -1,0 +1,93 @@
+# Fleet read cache (Axis A) — design
+
+**Status:** implemented on `feat/fleet-cache-layer` (engine + factory wiring).
+**Date:** 2026-05-31.
+
+## Problem
+
+`sigil-manager` reads fleet evidence from `sigil-server` and renders dashboards.
+Until now the `/api/v1/fleet/*` handlers were a **thin pass-through**: every
+browser request triggered a fresh `GET` to `sigil-server`. The SPA polls
+(`FLEET_POLL_INTERVAL_SECONDS`, default 5s) per visible panel, so upstream load
+scaled as `concurrent clients × panels × poll rate`. At enterprise scale that
+is a thundering herd on the producer.
+
+This is the **manager↔server pull link**. Pull is the correct model here (a
+read-only console pulling an aggregation API; pushing would couple the producer
+to every self-hosted consumer). The fix is not push — it is to **decouple
+browser fan-out from upstream load** with a cache in the manager.
+
+## Approach: stale-while-revalidate + single-flight
+
+A `CachingClient` decorates the `fleet.Client` interface
+(`internal/fleet/cache.go`). It is the only change to the read path — handlers,
+`http.go`, `mock.go`, and the interface are untouched. `NewFromConfig` wraps the
+chosen client unless `FLEET_CACHE_DISABLED=1`.
+
+State machine per cache key (`method + normalized params`), by entry age:
+
+| age | behavior |
+| --- | --- |
+| `< TTL` | fresh — return cached |
+| `TTL ≤ age < MaxStale` | return **stale immediately**, refresh in background |
+| `≥ MaxStale` | blocking refresh; **fall back to stale on upstream error** |
+| miss | blocking fetch |
+
+- **single-flight** (`golang.org/x/sync/singleflight`) collapses concurrent
+  identical misses/refreshes into one upstream call — no herd on expiry.
+- **SWR** means readers almost always get an instant cached answer; refreshes
+  happen off the request path. Upstream load becomes a steady trickle
+  (`keys / TTL`), independent of client count.
+- **Graceful degradation**: if `sigil-server` blips, the dashboard shows
+  last-known-good data instead of going blank. Dovetails with the existing
+  503 / `Retry-After` handling in `retry.go`.
+
+## Configuration
+
+| env | meaning | default |
+| --- | --- | --- |
+| `FLEET_CACHE_DISABLED` | `1` → pass-through, no cache (kill-switch) | `0` |
+| `FLEET_CACHE_MAX_ENTRIES` | LRU-ish bound on distinct keys | `512` |
+| `FLEET_POLL_INTERVAL_SECONDS` | reused as cache **TTL**; `MaxStale = 12×` | `5` |
+
+## Scope decisions
+
+- **`/v1/healthz` is never cached** — a health probe must reflect the live
+  upstream every call.
+- **Triage is not cached** — `handleFleetEvents` joins the triage SQLite *after*
+  the fleet call, so triage state stays live; no invalidation needed.
+- **Only successful (2xx) responses are cached.** Errors pass through (with the
+  existing retry), except the stale-fallback degradation path.
+- **Single tenant, single upstream** — one global cache, no per-tenant keys.
+  Per-tenant caching is a `sigil-cloud` concern, deliberately absent here.
+- **In-process memory cache only** — no Redis. Matches the single-binary,
+  self-host model.
+- Eviction is **oldest-`fetchedAt`** when at capacity (a simple bounded cache),
+  not true access-LRU. Sufficient for the memory-bound goal; can upgrade later.
+
+## Tests (`internal/fleet/cache_test.go`, all TDD red→green)
+
+1. Concurrent identical misses collapse to **one** upstream call (herd).
+2. Second call within TTL hits cache (0 extra upstream calls).
+3. SWR: post-TTL read returns stale immediately + triggers background refresh;
+   a later read sees the refreshed value (exactly 2 upstream calls total).
+4. Graceful degradation: past `MaxStale` + upstream down → serves last-good.
+5. `Healthz` is never cached (3 calls → 3 upstream calls).
+6. Distinct keys past `MaxEntries` evict — store stays bounded.
+7. Zero-value config falls back to sane defaults (non-zero TTL).
+
+Race-clean (`go test -race`).
+
+## Deliberately deferred (follow-ups)
+
+- **Per-endpoint TTLs.** Today one global TTL (= poll interval) for all cached
+  endpoints; `meta`/`policy_meta` could use a much longer TTL and `events` a
+  shorter one. The design table:
+  `meta`/`policy_meta` 60s, `risk`/`compliance`/`hosts`/`host_by_id` 5s,
+  `events` 3s, `event_by_id` 30s.
+- **Freshness exposure to the SPA** (`X-Sigil-Cache: hit|stale|miss` + `Age`),
+  so the UI can badge "data N seconds old" / degraded state. The cache layer
+  returns Go structs (not HTTP responses); surfacing this without changing the
+  `fleet.Client` interface needs handler-level plumbing — out of this PR.
+- **Background warmer** for hot canonical keys (excluded as YAGNI — SWR warms
+  lazily on first access).
