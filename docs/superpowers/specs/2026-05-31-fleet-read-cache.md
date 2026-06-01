@@ -1,6 +1,7 @@
 # Fleet read cache (Axis A) — design
 
-**Status:** implemented on `feat/fleet-cache-layer` (engine + factory wiring).
+**Status:** implemented on `feat/fleet-cache-layer` (engine + per-endpoint TTLs
++ factory wiring).
 **Date:** 2026-05-31.
 
 ## Problem
@@ -48,7 +49,21 @@ State machine per cache key (`method + normalized params`), by entry age:
 | --- | --- | --- |
 | `FLEET_CACHE_DISABLED` | `1` → pass-through, no cache (kill-switch) | `0` |
 | `FLEET_CACHE_MAX_ENTRIES` | LRU-ish bound on distinct keys | `512` |
-| `FLEET_POLL_INTERVAL_SECONDS` | reused as cache **TTL**; `MaxStale = 12×` | `5` |
+| `FLEET_POLL_INTERVAL_SECONDS` | base live **TTL**; `MaxStale = 12×` | `5` |
+
+### Per-endpoint freshness (two tiers)
+
+Derived from the base live window (`buildPolicies`):
+
+| tier | endpoints | TTL | MaxStale |
+| --- | --- | --- | --- |
+| live | `events`, `hosts`, `host_by_id`, `risk`, `compliance` | `base` | `12×base` |
+| slow | `meta`, `policy_meta`, `event_by_id` (immutable past event) | `12×base` | `144×base` |
+| — | `healthz` | not cached | — |
+
+At the default `base=5s`: live = 5s / 60s, slow = 60s / 12m. The slow tier
+avoids re-hitting `sigil-server` for metadata that barely changes, while live
+aggregates stay as fresh as the SPA's poll.
 
 ## Scope decisions
 
@@ -75,16 +90,13 @@ State machine per cache key (`method + normalized params`), by entry age:
 5. `Healthz` is never cached (3 calls → 3 upstream calls).
 6. Distinct keys past `MaxEntries` evict — store stays bounded.
 7. Zero-value config falls back to sane defaults (non-zero TTL).
+8. Per-endpoint TTL: past the live TTL, `Meta` is still served fresh (slow
+   tier) while `Events` is already stale.
 
 Race-clean (`go test -race`).
 
 ## Deliberately deferred (follow-ups)
 
-- **Per-endpoint TTLs.** Today one global TTL (= poll interval) for all cached
-  endpoints; `meta`/`policy_meta` could use a much longer TTL and `events` a
-  shorter one. The design table:
-  `meta`/`policy_meta` 60s, `risk`/`compliance`/`hosts`/`host_by_id` 5s,
-  `events` 3s, `event_by_id` 30s.
 - **Freshness exposure to the SPA** (`X-Sigil-Cache: hit|stale|miss` + `Age`),
   so the UI can badge "data N seconds old" / degraded state. The cache layer
   returns Go structs (not HTTP responses); surfacing this without changing the

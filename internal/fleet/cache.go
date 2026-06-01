@@ -30,13 +30,42 @@ type entry struct {
 	fetchedAt time.Time
 }
 
+// cachePolicy is the freshness window for one logical endpoint.
+type cachePolicy struct {
+	ttl      time.Duration // fresh below this age
+	maxStale time.Duration // served stale (and revalidated) up to this age
+}
+
+// slowTierMultiplier scales the live TTL up for slow-changing / immutable
+// endpoints (meta, policy_meta, event_by_id).
+const slowTierMultiplier = 12
+
+// buildPolicies derives per-endpoint freshness from the base (live) window.
+// Two tiers: live data tracks the poll interval; metadata and immutable
+// (past) events get a much longer TTL.
+func buildPolicies(live cachePolicy) map[string]cachePolicy {
+	slow := cachePolicy{ttl: slowTierMultiplier * live.ttl, maxStale: slowTierMultiplier * live.maxStale}
+	return map[string]cachePolicy{
+		"meta":        slow,
+		"policy_meta": slow,
+		"event_by_id": slow, // a past event is immutable
+		"events":      live,
+		"hosts":       live,
+		"host_by_id":  live,
+		"risk":        live,
+		"compliance":  live,
+	}
+}
+
 // CachingClient decorates a [Client] with single-flight de-duplication and a
 // TTL cache (stale-while-revalidate is layered on in later cycles).
 type CachingClient struct {
-	next  Client
-	cfg   CacheConfig
-	sf    singleflight.Group
-	clock func() time.Time
+	next     Client
+	cfg      CacheConfig
+	sf       singleflight.Group
+	clock    func() time.Time
+	policies map[string]cachePolicy
+	deflt    cachePolicy
 
 	mu    sync.Mutex
 	store map[string]*entry
@@ -65,12 +94,24 @@ func NewCachingClient(next Client, cfg CacheConfig) *CachingClient {
 	if clock == nil {
 		clock = time.Now
 	}
+	live := cachePolicy{ttl: cfg.TTL, maxStale: cfg.MaxStale}
 	return &CachingClient{
-		next:  next,
-		cfg:   cfg,
-		clock: clock,
-		store: make(map[string]*entry),
+		next:     next,
+		cfg:      cfg,
+		clock:    clock,
+		policies: buildPolicies(live),
+		deflt:    live,
+		store:    make(map[string]*entry),
 	}
+}
+
+// policyFor returns the freshness policy for a logical endpoint, falling back
+// to the live (default) policy for any unmapped endpoint.
+func (c *CachingClient) policyFor(endpoint string) cachePolicy {
+	if p, ok := c.policies[endpoint]; ok {
+		return p
+	}
+	return c.deflt
 }
 
 var _ Client = (*CachingClient)(nil)
@@ -83,7 +124,10 @@ var _ Client = (*CachingClient)(nil)
 //	miss                → blocking fetch.
 //
 // Concurrent misses/refreshes for the same key collapse into one upstream call.
-func getCached[T any](c *CachingClient, key string, fetch func() (*T, error)) (*T, error) {
+// The freshness window is the policy for endpoint (see [buildPolicies]).
+func getCached[T any](c *CachingClient, endpoint, key string, fetch func() (*T, error)) (*T, error) {
+	pol := c.policyFor(endpoint)
+
 	// fetchStore performs the upstream call and, on success, stores the result.
 	fetchStore := func() (any, error) {
 		out, ferr := fetch()
@@ -105,9 +149,9 @@ func getCached[T any](c *CachingClient, key string, fetch func() (*T, error)) (*
 	if ok {
 		age := now.Sub(e.fetchedAt)
 		switch {
-		case age < c.cfg.TTL:
+		case age < pol.ttl:
 			return e.val.(*T), nil // fresh
-		case age < c.cfg.MaxStale:
+		case age < pol.maxStale:
 			// Serve stale now; refresh in the background. Single-flight makes
 			// concurrent stale reads share one refresh.
 			go func() { _, _, _ = c.sf.Do(key, fetchStore) }()
@@ -157,11 +201,11 @@ func (c *CachingClient) evictIfNeededLocked(key string) {
 }
 
 func (c *CachingClient) Events(ctx context.Context, p EventsParams) (*EventsPage, error) {
-	return getCached(c, "events|"+fmt.Sprintf("%+v", p), func() (*EventsPage, error) { return c.next.Events(ctx, p) })
+	return getCached(c, "events", "events|"+fmt.Sprintf("%+v", p), func() (*EventsPage, error) { return c.next.Events(ctx, p) })
 }
 
 func (c *CachingClient) Meta(ctx context.Context) (*Meta, error) {
-	return getCached(c, "meta", func() (*Meta, error) { return c.next.Meta(ctx) })
+	return getCached(c, "meta", "meta", func() (*Meta, error) { return c.next.Meta(ctx) })
 }
 
 func (c *CachingClient) Healthz(ctx context.Context) (*Healthz, error) {
@@ -170,25 +214,25 @@ func (c *CachingClient) Healthz(ctx context.Context) (*Healthz, error) {
 }
 
 func (c *CachingClient) PolicyMeta(ctx context.Context) (*PolicyMeta, error) {
-	return getCached(c, "policy_meta", func() (*PolicyMeta, error) { return c.next.PolicyMeta(ctx) })
+	return getCached(c, "policy_meta", "policy_meta", func() (*PolicyMeta, error) { return c.next.PolicyMeta(ctx) })
 }
 
 func (c *CachingClient) EventByID(ctx context.Context, id string) (*Event, error) {
-	return getCached(c, "event_by_id|"+id, func() (*Event, error) { return c.next.EventByID(ctx, id) })
+	return getCached(c, "event_by_id", "event_by_id|"+id, func() (*Event, error) { return c.next.EventByID(ctx, id) })
 }
 
 func (c *CachingClient) FleetHosts(ctx context.Context, p HostsParams) (*HostsPage, error) {
-	return getCached(c, "hosts|"+fmt.Sprintf("%+v", p), func() (*HostsPage, error) { return c.next.FleetHosts(ctx, p) })
+	return getCached(c, "hosts", "hosts|"+fmt.Sprintf("%+v", p), func() (*HostsPage, error) { return c.next.FleetHosts(ctx, p) })
 }
 
 func (c *CachingClient) FleetHostByID(ctx context.Context, id string) (*HostDetail, error) {
-	return getCached(c, "host_by_id|"+id, func() (*HostDetail, error) { return c.next.FleetHostByID(ctx, id) })
+	return getCached(c, "host_by_id", "host_by_id|"+id, func() (*HostDetail, error) { return c.next.FleetHostByID(ctx, id) })
 }
 
 func (c *CachingClient) FleetRisk(ctx context.Context, p RiskParams) (*RiskPage, error) {
-	return getCached(c, "risk|"+fmt.Sprintf("%+v", p), func() (*RiskPage, error) { return c.next.FleetRisk(ctx, p) })
+	return getCached(c, "risk", "risk|"+fmt.Sprintf("%+v", p), func() (*RiskPage, error) { return c.next.FleetRisk(ctx, p) })
 }
 
 func (c *CachingClient) FleetCompliance(ctx context.Context, p ComplianceParams) (*CompliancePage, error) {
-	return getCached(c, "compliance|"+fmt.Sprintf("%+v", p), func() (*CompliancePage, error) { return c.next.FleetCompliance(ctx, p) })
+	return getCached(c, "compliance", "compliance|"+fmt.Sprintf("%+v", p), func() (*CompliancePage, error) { return c.next.FleetCompliance(ctx, p) })
 }
