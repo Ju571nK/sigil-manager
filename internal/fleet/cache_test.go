@@ -387,3 +387,46 @@ func TestCache_ZeroConfigStillCaches(t *testing.T) {
 		t.Fatalf("upstream Events called %d times with zero config, want 1 (defaults must give a non-zero TTL)", got)
 	}
 }
+
+// TestCache_PerEndpointTTL is RED #8: slow-changing metadata (Meta) must get a
+// longer TTL than live data (Events). Past the live TTL but within the meta
+// TTL, a Meta read is still served fresh (no upstream refetch), while an Events
+// read at the same instant is already stale.
+func TestCache_PerEndpointTTL(t *testing.T) {
+	mc := &manualClock{t: time.Unix(1_700_000_000, 0)}
+	up := newCountingClient()
+	cfg := CacheConfig{
+		TTL:        20 * time.Millisecond, // live tier
+		MaxStale:   time.Second,
+		MaxEntries: 128,
+		clock:      mc.now,
+	}
+	c := NewCachingClient(up, cfg)
+
+	// Prime both endpoints at gen 0.
+	if _, err := c.Meta(context.Background()); err != nil {
+		t.Fatalf("prime meta: %v", err)
+	}
+	if _, err := c.Events(context.Background(), EventsParams{}); err != nil {
+		t.Fatalf("prime events: %v", err)
+	}
+
+	// Advance past the live (Events) TTL but well within the meta TTL.
+	mc.advance(100 * time.Millisecond)
+
+	// Sanity: at this instant Events IS stale — a read triggers a refresh.
+	if _, err := c.Events(context.Background(), EventsParams{}); err != nil {
+		t.Fatalf("events read: %v", err)
+	}
+	waitForCall(t, up, "Events", 2) // confirms 100ms is past the live TTL
+
+	// Meta must still be fresh → served from cache with NO background refresh.
+	if _, err := c.Meta(context.Background()); err != nil {
+		t.Fatalf("meta read: %v", err)
+	}
+	// Give any (erroneous) background refresh time to fire before asserting.
+	time.Sleep(50 * time.Millisecond)
+	if got := up.callCount("Meta"); got != 1 {
+		t.Fatalf("upstream Meta called %d times, want 1 (metadata TTL must outlast the live TTL)", got)
+	}
+}
