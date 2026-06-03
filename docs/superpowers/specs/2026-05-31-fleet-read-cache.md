@@ -31,8 +31,24 @@ State machine per cache key (`method + normalized params`), by entry age:
 | --- | --- |
 | `< TTL` | fresh — return cached |
 | `TTL ≤ age < MaxStale` | return **stale immediately**, refresh in background |
-| `≥ MaxStale` | blocking refresh; **fall back to stale on upstream error** |
+| `≥ MaxStale` | blocking refresh; fall back to stale **only on transient errors** |
 | miss | blocking fetch |
+
+The upstream fetch runs on a context **detached** from the caller
+(`context.WithoutCancel`), so a background revalidation still completes after the
+handler returns (`r.Context()` canceled), and a single-flight follower whose own
+request was canceled does not fail the shared fetch. The upstream HTTP client
+carries its own timeout, so the detached context cannot hang.
+
+Degradation to stale fires **only for transient errors** (`isRetryable`: 503 /
+network timeout). Terminal errors (401 token revoked, 404 gone, …) surface —
+they are never masked by serving stale data.
+
+Cache keys are the **canonical query encoding** (`buildEventsQuery(p).Encode()`
+etc., the same builders `http.go` uses), not `fmt.Sprintf("%+v")`. This
+percent-escapes values (so `["a","b"]` and `["a b"]` can't collide) and
+normalizes `Since`/`Until` to UTC RFC3339 (no monotonic-clock / time-zone key
+churn).
 
 - **single-flight** (`golang.org/x/sync/singleflight`) collapses concurrent
   identical misses/refreshes into one upstream call — no herd on expiry.
@@ -79,6 +95,10 @@ aggregates stay as fresh as the SPA's poll.
   self-host model.
 - Eviction is **oldest-`fetchedAt`** when at capacity (a simple bounded cache),
   not true access-LRU. Sufficient for the memory-bound goal; can upgrade later.
+- Returned values are **shared pointers** across concurrent readers of the same
+  key — callers MUST treat them as read-only (the fleet handlers only serialize
+  them). The cache does not deep-copy (it would cost on every hit for a hazard
+  no current caller triggers).
 
 ## Tests (`internal/fleet/cache_test.go`, all TDD red→green)
 
@@ -92,6 +112,11 @@ aggregates stay as fresh as the SPA's poll.
 7. Zero-value config falls back to sane defaults (non-zero TTL).
 8. Per-endpoint TTL: past the live TTL, `Meta` is still served fresh (slow
    tier) while `Events` is already stale.
+9. Background refresh runs on a detached context — it completes even when the
+   triggering request's context is already canceled.
+10. Terminal errors (`ErrUnauthorized`) surface past MaxStale; only transient
+    errors degrade to stale.
+11. Distinct slice params (`["a","b"]` vs `["a b"]`) get distinct cache keys.
 
 Race-clean (`go test -race`).
 
