@@ -2,7 +2,6 @@ package fleet
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -125,12 +124,26 @@ var _ Client = (*CachingClient)(nil)
 //
 // Concurrent misses/refreshes for the same key collapse into one upstream call.
 // The freshness window is the policy for endpoint (see [buildPolicies]).
-func getCached[T any](c *CachingClient, endpoint, key string, fetch func() (*T, error)) (*T, error) {
+//
+// The cache key is `endpoint + "|" + suffix`, so the endpoint name picks both
+// the freshness policy and the key namespace from one argument (no chance of
+// the two drifting apart). suffix is "" for parameterless endpoints.
+//
+// The upstream fetch runs on a context detached from the caller's
+// (context.WithoutCancel), so a background revalidation — or a single-flight
+// follower whose own request was canceled — still completes. The upstream
+// HTTP client carries its own timeout, so the detached context cannot hang.
+//
+// The returned *T is shared with every concurrent reader of the same key;
+// callers MUST treat it as read-only (the fleet handlers only serialize it).
+func getCached[T any](c *CachingClient, ctx context.Context, endpoint, suffix string, fetch func(context.Context) (*T, error)) (*T, error) {
 	pol := c.policyFor(endpoint)
+	key := endpoint + "|" + suffix
+	fctx := context.WithoutCancel(ctx)
 
 	// fetchStore performs the upstream call and, on success, stores the result.
 	fetchStore := func() (any, error) {
-		out, ferr := fetch()
+		out, ferr := fetch(fctx)
 		if ferr != nil {
 			return nil, ferr
 		}
@@ -157,12 +170,16 @@ func getCached[T any](c *CachingClient, endpoint, key string, fetch func() (*T, 
 			go func() { _, _, _ = c.sf.Do(key, fetchStore) }()
 			return e.val.(*T), nil
 		default:
-			// Too stale: refresh synchronously, but degrade to the last-known
-			// value if the upstream is unavailable (graceful degradation — the
-			// dashboard shows old data rather than going blank).
+			// Too stale: refresh synchronously. Degrade to the last-known value
+			// ONLY for transient upstream errors (503 / network timeout) — the
+			// dashboard shows old data rather than going blank. Terminal errors
+			// (401 token revoked, 404 gone, etc.) must surface, never be masked.
 			v, ferr, _ := c.sf.Do(key, fetchStore)
 			if ferr != nil {
-				return e.val.(*T), nil
+				if isRetryable(ferr) {
+					return e.val.(*T), nil
+				}
+				return nil, ferr
 			}
 			return v.(*T), nil
 		}
@@ -201,11 +218,13 @@ func (c *CachingClient) evictIfNeededLocked(key string) {
 }
 
 func (c *CachingClient) Events(ctx context.Context, p EventsParams) (*EventsPage, error) {
-	return getCached(c, "events", "events|"+fmt.Sprintf("%+v", p), func() (*EventsPage, error) { return c.next.Events(ctx, p) })
+	return getCached(c, ctx, "events", buildEventsQuery(p).Encode(),
+		func(fctx context.Context) (*EventsPage, error) { return c.next.Events(fctx, p) })
 }
 
 func (c *CachingClient) Meta(ctx context.Context) (*Meta, error) {
-	return getCached(c, "meta", "meta", func() (*Meta, error) { return c.next.Meta(ctx) })
+	return getCached(c, ctx, "meta", "",
+		func(fctx context.Context) (*Meta, error) { return c.next.Meta(fctx) })
 }
 
 func (c *CachingClient) Healthz(ctx context.Context) (*Healthz, error) {
@@ -214,25 +233,31 @@ func (c *CachingClient) Healthz(ctx context.Context) (*Healthz, error) {
 }
 
 func (c *CachingClient) PolicyMeta(ctx context.Context) (*PolicyMeta, error) {
-	return getCached(c, "policy_meta", "policy_meta", func() (*PolicyMeta, error) { return c.next.PolicyMeta(ctx) })
+	return getCached(c, ctx, "policy_meta", "",
+		func(fctx context.Context) (*PolicyMeta, error) { return c.next.PolicyMeta(fctx) })
 }
 
 func (c *CachingClient) EventByID(ctx context.Context, id string) (*Event, error) {
-	return getCached(c, "event_by_id", "event_by_id|"+id, func() (*Event, error) { return c.next.EventByID(ctx, id) })
+	return getCached(c, ctx, "event_by_id", id,
+		func(fctx context.Context) (*Event, error) { return c.next.EventByID(fctx, id) })
 }
 
 func (c *CachingClient) FleetHosts(ctx context.Context, p HostsParams) (*HostsPage, error) {
-	return getCached(c, "hosts", "hosts|"+fmt.Sprintf("%+v", p), func() (*HostsPage, error) { return c.next.FleetHosts(ctx, p) })
+	return getCached(c, ctx, "hosts", buildHostsQuery(p).Encode(),
+		func(fctx context.Context) (*HostsPage, error) { return c.next.FleetHosts(fctx, p) })
 }
 
 func (c *CachingClient) FleetHostByID(ctx context.Context, id string) (*HostDetail, error) {
-	return getCached(c, "host_by_id", "host_by_id|"+id, func() (*HostDetail, error) { return c.next.FleetHostByID(ctx, id) })
+	return getCached(c, ctx, "host_by_id", id,
+		func(fctx context.Context) (*HostDetail, error) { return c.next.FleetHostByID(fctx, id) })
 }
 
 func (c *CachingClient) FleetRisk(ctx context.Context, p RiskParams) (*RiskPage, error) {
-	return getCached(c, "risk", "risk|"+fmt.Sprintf("%+v", p), func() (*RiskPage, error) { return c.next.FleetRisk(ctx, p) })
+	return getCached(c, ctx, "risk", buildRiskQuery(p).Encode(),
+		func(fctx context.Context) (*RiskPage, error) { return c.next.FleetRisk(fctx, p) })
 }
 
 func (c *CachingClient) FleetCompliance(ctx context.Context, p ComplianceParams) (*CompliancePage, error) {
-	return getCached(c, "compliance", "compliance|"+fmt.Sprintf("%+v", p), func() (*CompliancePage, error) { return c.next.FleetCompliance(ctx, p) })
+	return getCached(c, ctx, "compliance", buildComplianceQuery(p).Encode(),
+		func(fctx context.Context) (*CompliancePage, error) { return c.next.FleetCompliance(fctx, p) })
 }

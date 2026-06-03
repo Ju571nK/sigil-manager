@@ -2,6 +2,7 @@ package fleet
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -29,7 +30,7 @@ func newCountingClient() *countingClient {
 	return &countingClient{calls: map[string]int{}, called: make(chan string, 1024)}
 }
 
-func (c *countingClient) record(method string) (gen int, err error) {
+func (c *countingClient) record(ctx context.Context, method string) (gen int, err error) {
 	c.mu.Lock()
 	c.calls[method]++
 	g, d, e := c.gen, c.delay, c.err
@@ -37,6 +38,11 @@ func (c *countingClient) record(method string) (gen int, err error) {
 	select {
 	case c.called <- method:
 	default:
+	}
+	// Honor context cancellation like the real HTTPClient does — a fetch on a
+	// canceled context fails.
+	if ctx != nil && ctx.Err() != nil {
+		return g, ctx.Err()
 	}
 	if d > 0 {
 		time.Sleep(d)
@@ -58,8 +64,8 @@ func (c *countingClient) setDelay(d time.Duration) { c.mu.Lock(); c.delay = d; c
 // field (e.g. NextCursor / ServerVersion) and assert on.
 func genMarker(g int) string { return "gen-" + strconv.Itoa(g) }
 
-func (c *countingClient) Events(_ context.Context, _ EventsParams) (*EventsPage, error) {
-	g, err := c.record("Events")
+func (c *countingClient) Events(ctx context.Context, _ EventsParams) (*EventsPage, error) {
+	g, err := c.record(ctx, "Events")
 	if err != nil {
 		return nil, err
 	}
@@ -67,40 +73,40 @@ func (c *countingClient) Events(_ context.Context, _ EventsParams) (*EventsPage,
 	return &EventsPage{NextCursor: &m}, nil
 }
 
-func (c *countingClient) Meta(_ context.Context) (*Meta, error) {
-	g, err := c.record("Meta")
+func (c *countingClient) Meta(ctx context.Context) (*Meta, error) {
+	g, err := c.record(ctx, "Meta")
 	if err != nil {
 		return nil, err
 	}
 	return &Meta{ServerVersion: genMarker(g)}, nil
 }
 
-func (c *countingClient) Healthz(_ context.Context) (*Healthz, error) {
-	g, err := c.record("Healthz")
+func (c *countingClient) Healthz(ctx context.Context) (*Healthz, error) {
+	g, err := c.record(ctx, "Healthz")
 	if err != nil {
 		return nil, err
 	}
 	return &Healthz{Status: genMarker(g)}, nil
 }
 
-func (c *countingClient) PolicyMeta(_ context.Context) (*PolicyMeta, error) {
-	g, err := c.record("PolicyMeta")
+func (c *countingClient) PolicyMeta(ctx context.Context) (*PolicyMeta, error) {
+	g, err := c.record(ctx, "PolicyMeta")
 	if err != nil {
 		return nil, err
 	}
 	return &PolicyMeta{PolicyVersion: g}, nil
 }
 
-func (c *countingClient) EventByID(_ context.Context, _ string) (*Event, error) {
-	g, err := c.record("EventByID")
+func (c *countingClient) EventByID(ctx context.Context, _ string) (*Event, error) {
+	g, err := c.record(ctx, "EventByID")
 	if err != nil {
 		return nil, err
 	}
 	return &Event{EventID: genMarker(g)}, nil
 }
 
-func (c *countingClient) FleetHosts(_ context.Context, _ HostsParams) (*HostsPage, error) {
-	g, err := c.record("FleetHosts")
+func (c *countingClient) FleetHosts(ctx context.Context, _ HostsParams) (*HostsPage, error) {
+	g, err := c.record(ctx, "FleetHosts")
 	if err != nil {
 		return nil, err
 	}
@@ -108,8 +114,8 @@ func (c *countingClient) FleetHosts(_ context.Context, _ HostsParams) (*HostsPag
 	return &HostsPage{NextCursor: &m}, nil
 }
 
-func (c *countingClient) FleetHostByID(_ context.Context, _ string) (*HostDetail, error) {
-	g, err := c.record("FleetHostByID")
+func (c *countingClient) FleetHostByID(ctx context.Context, _ string) (*HostDetail, error) {
+	g, err := c.record(ctx, "FleetHostByID")
 	if err != nil {
 		return nil, err
 	}
@@ -118,8 +124,8 @@ func (c *countingClient) FleetHostByID(_ context.Context, _ string) (*HostDetail
 	return hd, nil
 }
 
-func (c *countingClient) FleetRisk(_ context.Context, _ RiskParams) (*RiskPage, error) {
-	g, err := c.record("FleetRisk")
+func (c *countingClient) FleetRisk(ctx context.Context, _ RiskParams) (*RiskPage, error) {
+	g, err := c.record(ctx, "FleetRisk")
 	if err != nil {
 		return nil, err
 	}
@@ -127,8 +133,8 @@ func (c *countingClient) FleetRisk(_ context.Context, _ RiskParams) (*RiskPage, 
 	return &RiskPage{NextCursor: &m}, nil
 }
 
-func (c *countingClient) FleetCompliance(_ context.Context, _ ComplianceParams) (*CompliancePage, error) {
-	g, err := c.record("FleetCompliance")
+func (c *countingClient) FleetCompliance(ctx context.Context, _ ComplianceParams) (*CompliancePage, error) {
+	g, err := c.record(ctx, "FleetCompliance")
 	if err != nil {
 		return nil, err
 	}
@@ -428,5 +434,109 @@ func TestCache_PerEndpointTTL(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	if got := up.callCount("Meta"); got != 1 {
 		t.Fatalf("upstream Meta called %d times, want 1 (metadata TTL must outlast the live TTL)", got)
+	}
+}
+
+// eventsEntry scans the store for the single cached EventsPage (tests that make
+// only Events calls hold exactly one).
+func eventsEntry(c *CachingClient) *EventsPage {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, e := range c.store {
+		if p, ok := e.val.(*EventsPage); ok {
+			return p
+		}
+	}
+	return nil
+}
+
+// TestCache_BackgroundRefreshDetachedFromRequestContext is a regression test
+// for bug #1/#3: the background stale-while-revalidate refresh must run on a
+// context detached from the request, so it still completes after the handler
+// has returned (and r.Context() is canceled). Otherwise SWR silently collapses
+// to plain TTL-with-stale-fallback.
+func TestCache_BackgroundRefreshDetachedFromRequestContext(t *testing.T) {
+	mc := &manualClock{t: time.Unix(1_700_000_000, 0)}
+	up := newCountingClient()
+	cfg := testCacheConfig() // TTL=100ms, MaxStale=1s
+	cfg.clock = mc.now
+	c := NewCachingClient(up, cfg)
+
+	if _, err := c.Events(context.Background(), EventsParams{}); err != nil {
+		t.Fatalf("prime: %v", err)
+	}
+	mc.advance(200 * time.Millisecond)
+	up.setGen(1)
+
+	// A request whose context is already done — mirrors a handler that has
+	// returned by the time the background refresh goroutine runs.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	stale, err := c.Events(ctx, EventsParams{})
+	if err != nil {
+		t.Fatalf("stale read should not error on a cache hit: %v", err)
+	}
+	if *stale.NextCursor != genMarker(0) {
+		t.Fatalf("stale read returned %q, want gen-0", *stale.NextCursor)
+	}
+
+	waitForCall(t, up, "Events", 2)
+
+	// The background refresh must have used a live (detached) context and
+	// stored gen-1 despite the request context being canceled.
+	deadline := time.After(2 * time.Second)
+	for {
+		if p := eventsEntry(c); p != nil && p.NextCursor != nil && *p.NextCursor == genMarker(1) {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("background refresh never stored gen-1 — it likely ran on the canceled request context")
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+}
+
+// TestCache_SurfacesTerminalErrorPastMaxStale is a regression test for bug #2:
+// past MaxStale, a TERMINAL upstream error (e.g. ErrUnauthorized after the read
+// token is revoked) must surface, not be masked by serving stale data. Only
+// transient errors (503/timeout) degrade to last-known-good.
+func TestCache_SurfacesTerminalErrorPastMaxStale(t *testing.T) {
+	mc := &manualClock{t: time.Unix(1_700_000_000, 0)}
+	up := newCountingClient()
+	cfg := testCacheConfig() // TTL=100ms, MaxStale=1s
+	cfg.clock = mc.now
+	c := NewCachingClient(up, cfg)
+
+	if _, err := c.Events(context.Background(), EventsParams{}); err != nil {
+		t.Fatalf("prime: %v", err)
+	}
+	mc.advance(5 * time.Second) // past MaxStale
+	up.setErr(ErrUnauthorized)  // token revoked upstream — terminal
+
+	_, err := c.Events(context.Background(), EventsParams{})
+	if !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("expected ErrUnauthorized to surface, got %v (terminal errors must not be masked by stale serving)", err)
+	}
+}
+
+// TestCache_DistinctSliceParamsDoNotCollide is a regression test for bug #4:
+// the cache key must distinguish a multi-element slice from a single element
+// that happens to contain the separator, so distinct queries never collide
+// onto one entry (which would serve the wrong host's data).
+func TestCache_DistinctSliceParamsDoNotCollide(t *testing.T) {
+	up := newCountingClient()
+	c := NewCachingClient(up, testCacheConfig())
+
+	if _, err := c.Events(context.Background(), EventsParams{HostIDs: []string{"a", "b"}}); err != nil {
+		t.Fatalf("call 1: %v", err)
+	}
+	if _, err := c.Events(context.Background(), EventsParams{HostIDs: []string{"a b"}}); err != nil {
+		t.Fatalf("call 2: %v", err)
+	}
+
+	if got := up.callCount("Events"); got != 2 {
+		t.Fatalf("upstream Events called %d times, want 2 (distinct slice params must not share a cache key)", got)
 	}
 }
