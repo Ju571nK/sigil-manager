@@ -217,46 +217,55 @@ func (c *CachingClient) evictIfNeededLocked(key string) {
 	}
 }
 
+// Events implements [Client.Events] with caching.
 func (c *CachingClient) Events(ctx context.Context, p EventsParams) (*EventsPage, error) {
 	return getCached(c, ctx, "events", buildEventsQuery(p).Encode(),
 		func(fctx context.Context) (*EventsPage, error) { return c.next.Events(fctx, p) })
 }
 
+// Meta implements [Client.Meta] with caching.
 func (c *CachingClient) Meta(ctx context.Context) (*Meta, error) {
 	return getCached(c, ctx, "meta", "",
 		func(fctx context.Context) (*Meta, error) { return c.next.Meta(fctx) })
 }
 
+// Healthz implements [Client.Healthz]; it is intentionally not cached.
 func (c *CachingClient) Healthz(ctx context.Context) (*Healthz, error) {
 	// Never cached: a health probe must reflect the live upstream every call.
 	return c.next.Healthz(ctx)
 }
 
+// PolicyMeta implements [Client.PolicyMeta] with caching.
 func (c *CachingClient) PolicyMeta(ctx context.Context) (*PolicyMeta, error) {
 	return getCached(c, ctx, "policy_meta", "",
 		func(fctx context.Context) (*PolicyMeta, error) { return c.next.PolicyMeta(fctx) })
 }
 
+// EventByID implements [Client.EventByID] with caching.
 func (c *CachingClient) EventByID(ctx context.Context, id string) (*Event, error) {
 	return getCached(c, ctx, "event_by_id", id,
 		func(fctx context.Context) (*Event, error) { return c.next.EventByID(fctx, id) })
 }
 
+// FleetHosts implements [Client.FleetHosts] with caching.
 func (c *CachingClient) FleetHosts(ctx context.Context, p HostsParams) (*HostsPage, error) {
 	return getCached(c, ctx, "hosts", buildHostsQuery(p).Encode(),
 		func(fctx context.Context) (*HostsPage, error) { return c.next.FleetHosts(fctx, p) })
 }
 
+// FleetHostByID implements [Client.FleetHostByID] with caching.
 func (c *CachingClient) FleetHostByID(ctx context.Context, id string) (*HostDetail, error) {
 	return getCached(c, ctx, "host_by_id", id,
 		func(fctx context.Context) (*HostDetail, error) { return c.next.FleetHostByID(fctx, id) })
 }
 
+// FleetRisk implements [Client.FleetRisk] with caching.
 func (c *CachingClient) FleetRisk(ctx context.Context, p RiskParams) (*RiskPage, error) {
 	return getCached(c, ctx, "risk", buildRiskQuery(p).Encode(),
 		func(fctx context.Context) (*RiskPage, error) { return c.next.FleetRisk(fctx, p) })
 }
 
+// FleetCompliance implements [Client.FleetCompliance] with caching.
 func (c *CachingClient) FleetCompliance(ctx context.Context, p ComplianceParams) (*CompliancePage, error) {
 	return getCached(c, ctx, "compliance", buildComplianceQuery(p).Encode(),
 		func(fctx context.Context) (*CompliancePage, error) { return c.next.FleetCompliance(fctx, p) })
