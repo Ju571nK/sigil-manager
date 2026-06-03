@@ -3,6 +3,7 @@ package fleet
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/singleflight"
@@ -68,7 +69,19 @@ type CachingClient struct {
 
 	mu    sync.Mutex
 	store map[string]*entry
+
+	// refreshing holds the keys with a background revalidation in flight, so a
+	// burst of stale reads spawns at most one refresh goroutine per key.
+	refreshing sync.Map
+
+	// bgRefreshes counts background revalidation goroutines actually spawned
+	// (observed by tests to assert the per-key cap).
+	bgRefreshes atomic.Int64
 }
+
+// bgRefreshCount reports how many background refresh goroutines have been
+// spawned. Test-only accessor.
+func (c *CachingClient) bgRefreshCount() int64 { return c.bgRefreshes.Load() }
 
 // Cache defaults applied by [NewCachingClient] for zero-value config fields.
 const (
@@ -165,9 +178,16 @@ func getCached[T any](c *CachingClient, ctx context.Context, endpoint, suffix st
 		case age < pol.ttl:
 			return e.val.(*T), nil // fresh
 		case age < pol.maxStale:
-			// Serve stale now; refresh in the background. Single-flight makes
-			// concurrent stale reads share one refresh.
-			go func() { _, _, _ = c.sf.Do(key, fetchStore) }()
+			// Serve stale now; refresh in the background. Only the first stale
+			// reader spawns the refresh goroutine — the refreshing guard caps it
+			// at one per key, so a fan-out burst doesn't pile up goroutines.
+			if _, inflight := c.refreshing.LoadOrStore(key, struct{}{}); !inflight {
+				c.bgRefreshes.Add(1)
+				go func() {
+					defer c.refreshing.Delete(key)
+					_, _, _ = c.sf.Do(key, fetchStore)
+				}()
+			}
 			return e.val.(*T), nil
 		default:
 			// Too stale: refresh synchronously. Degrade to the last-known value
