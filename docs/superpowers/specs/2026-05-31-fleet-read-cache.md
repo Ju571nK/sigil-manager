@@ -93,8 +93,15 @@ aggregates stay as fresh as the SPA's poll.
   Per-tenant caching is a `sigil-cloud` concern, deliberately absent here.
 - **In-process memory cache only** — no Redis. Matches the single-binary,
   self-host model.
-- Eviction is **oldest-`fetchedAt`** when at capacity (a simple bounded cache),
-  not true access-LRU. Sufficient for the memory-bound goal; can upgrade later.
+- Eviction is **oldest-`fetchedAt`** when at capacity, O(1) via a
+  `container/list` ordered by fetch time (front = oldest; refreshes move to
+  back). Not access-LRU, but the memory bound is enforced without an O(n) scan.
+- `items`/`order` are guarded by an **RWMutex** so fresh-hit reads (the hot
+  path the cache exists to serve) proceed concurrently; only stores/evictions
+  take the write lock. Read values are copied out under the read lock.
+- A background revalidation spawns **at most one goroutine per key** (a
+  `refreshing` guard), so a fan-out burst of stale reads can't pile up
+  goroutines waiting on the shared single-flight call.
 - Returned values are **shared pointers** across concurrent readers of the same
   key — callers MUST treat them as read-only (the fleet handlers only serialize
   them). The cache does not deep-copy (it would cost on every hit for a hazard
