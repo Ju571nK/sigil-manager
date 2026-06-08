@@ -127,7 +127,7 @@ func (e *APIError) Error() string {
 type EventsParams struct {
 	Cursor           string    // opaque, from prior NextCursor
 	Limit            int       // silently clamped [1,1000] server-side (§6.2)
-	HostIDs          []string  // repeatable `?host_id=a&host_id=b`
+	HostIDs          []string  // comma-joined `?host_id=a,b` (sigil-server #75)
 	Since            time.Time // inclusive, agent's event.ts
 	Until            time.Time // exclusive, agent's event.ts
 	EvidenceKinds    []string  // comma-list, snake_case
