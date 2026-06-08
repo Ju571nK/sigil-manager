@@ -540,3 +540,37 @@ func TestCache_DistinctSliceParamsDoNotCollide(t *testing.T) {
 		t.Fatalf("upstream Events called %d times, want 2 (distinct slice params must not share a cache key)", got)
 	}
 }
+
+// TestCache_BackgroundRefreshSpawnsOneGoroutinePerKey is a regression test for
+// review finding #6: a fan-out burst of stale reads for the same key must spawn
+// at most ONE background refresh goroutine, not one per read. (single-flight
+// dedups the upstream call but not the goroutines waiting on it.)
+func TestCache_BackgroundRefreshSpawnsOneGoroutinePerKey(t *testing.T) {
+	mc := &manualClock{t: time.Unix(1_700_000_000, 0)}
+	up := newCountingClient()
+	cfg := testCacheConfig() // TTL=100ms, MaxStale=1s
+	cfg.clock = mc.now
+	c := NewCachingClient(up, cfg)
+
+	if _, err := c.Events(context.Background(), EventsParams{}); err != nil {
+		t.Fatalf("prime: %v", err)
+	}
+	mc.advance(200 * time.Millisecond) // now stale (within MaxStale)
+	up.setDelay(80 * time.Millisecond) // hold the refresh in-flight so the burst overlaps
+
+	const n = 50
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			_, _ = c.Events(context.Background(), EventsParams{})
+		}()
+	}
+	wg.Wait()
+	waitForCall(t, up, "Events", 2) // let the single refresh complete
+
+	if got := c.bgRefreshCount(); got != 1 {
+		t.Fatalf("spawned %d background refresh goroutines for one key, want 1", got)
+	}
+}
