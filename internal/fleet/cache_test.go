@@ -368,9 +368,9 @@ func TestCache_EvictsBeyondMaxEntries(t *testing.T) {
 		}
 	}
 
-	c.mu.Lock()
-	n := len(c.store)
-	c.mu.Unlock()
+	c.mu.RLock()
+	n := len(c.items)
+	c.mu.RUnlock()
 	if n > cfg.MaxEntries {
 		t.Fatalf("store holds %d entries, want ≤ %d (MaxEntries must bound memory)", n, cfg.MaxEntries)
 	}
@@ -440,10 +440,10 @@ func TestCache_PerEndpointTTL(t *testing.T) {
 // eventsEntry scans the store for the single cached EventsPage (tests that make
 // only Events calls hold exactly one).
 func eventsEntry(c *CachingClient) *EventsPage {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, e := range c.store {
-		if p, ok := e.val.(*EventsPage); ok {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, elem := range c.items {
+		if p, ok := elem.Value.(*cacheNode).val.(*EventsPage); ok {
 			return p
 		}
 	}

@@ -1,6 +1,7 @@
 package fleet
 
 import (
+	"container/list"
 	"context"
 	"sync"
 	"sync/atomic"
@@ -24,8 +25,11 @@ type CacheConfig struct {
 	clock func() time.Time
 }
 
-// entry is one cached response plus the instant it was fetched.
-type entry struct {
+// cacheNode is one cached response plus the instant it was fetched. It lives in
+// both the items map (keyed lookup) and the order list (eviction ordering), so
+// it carries its own key for O(1) eviction from the map when popped off the list.
+type cacheNode struct {
+	key       string
 	val       any
 	fetchedAt time.Time
 }
@@ -58,7 +62,7 @@ func buildPolicies(live cachePolicy) map[string]cachePolicy {
 }
 
 // CachingClient decorates a [Client] with single-flight de-duplication and a
-// TTL cache (stale-while-revalidate is layered on in later cycles).
+// stale-while-revalidate cache.
 type CachingClient struct {
 	next     Client
 	cfg      CacheConfig
@@ -67,8 +71,11 @@ type CachingClient struct {
 	policies map[string]cachePolicy
 	deflt    cachePolicy
 
-	mu    sync.Mutex
-	store map[string]*entry
+	// mu guards items+order. It is an RWMutex so fresh-hit reads (the hot path)
+	// proceed concurrently; only stores/evictions take the write lock.
+	mu    sync.RWMutex
+	items map[string]*list.Element // key → element whose Value is *cacheNode
+	order *list.List               // front = oldest fetchedAt, back = newest
 
 	// refreshing holds the keys with a background revalidation in flight, so a
 	// burst of stale reads spawns at most one refresh goroutine per key.
@@ -113,7 +120,8 @@ func NewCachingClient(next Client, cfg CacheConfig) *CachingClient {
 		clock:    clock,
 		policies: buildPolicies(live),
 		deflt:    live,
-		store:    make(map[string]*entry),
+		items:    make(map[string]*list.Element),
+		order:    list.New(),
 	}
 }
 
@@ -160,23 +168,31 @@ func getCached[T any](c *CachingClient, ctx context.Context, endpoint, suffix st
 		if ferr != nil {
 			return nil, ferr
 		}
-		c.mu.Lock()
-		c.evictIfNeededLocked(key)
-		c.store[key] = &entry{val: out, fetchedAt: c.clock()}
-		c.mu.Unlock()
+		c.store(key, out)
 		return out, nil
 	}
 
 	now := c.clock()
-	c.mu.Lock()
-	e, ok := c.store[key]
-	c.mu.Unlock()
+	// Copy the value + stamp out while holding the read lock; store() mutates
+	// the node in place under the write lock, so reading its fields after
+	// unlocking would race.
+	c.mu.RLock()
+	elem, ok := c.items[key]
+	var (
+		cachedVal any
+		fetchedAt time.Time
+	)
+	if ok {
+		node := elem.Value.(*cacheNode)
+		cachedVal, fetchedAt = node.val, node.fetchedAt
+	}
+	c.mu.RUnlock()
 
 	if ok {
-		age := now.Sub(e.fetchedAt)
+		age := now.Sub(fetchedAt)
 		switch {
 		case age < pol.ttl:
-			return e.val.(*T), nil // fresh
+			return cachedVal.(*T), nil // fresh
 		case age < pol.maxStale:
 			// Serve stale now; refresh in the background. Only the first stale
 			// reader spawns the refresh goroutine — the refreshing guard caps it
@@ -188,7 +204,7 @@ func getCached[T any](c *CachingClient, ctx context.Context, endpoint, suffix st
 					_, _, _ = c.sf.Do(key, fetchStore)
 				}()
 			}
-			return e.val.(*T), nil
+			return cachedVal.(*T), nil
 		default:
 			// Too stale: refresh synchronously. Degrade to the last-known value
 			// ONLY for transient upstream errors (503 / network timeout) — the
@@ -197,7 +213,7 @@ func getCached[T any](c *CachingClient, ctx context.Context, endpoint, suffix st
 			v, ferr, _ := c.sf.Do(key, fetchStore)
 			if ferr != nil {
 				if isRetryable(ferr) {
-					return e.val.(*T), nil
+					return cachedVal.(*T), nil
 				}
 				return nil, ferr
 			}
@@ -213,27 +229,31 @@ func getCached[T any](c *CachingClient, ctx context.Context, endpoint, suffix st
 	return v.(*T), nil
 }
 
-// evictIfNeededLocked makes room for a new key when the store is at capacity,
-// evicting the entry with the oldest fetch time. Caller must hold c.mu. A
-// no-op when key already exists (an update, not a new entry) or MaxEntries
-// is unbounded.
-func (c *CachingClient) evictIfNeededLocked(key string) {
-	if c.cfg.MaxEntries <= 0 {
+// store inserts or refreshes the cached value for key, stamping it with the
+// current time and marking it newest. When a new key pushes the cache past
+// MaxEntries, the oldest-fetched entries are evicted in O(1) from the front of
+// the order list.
+func (c *CachingClient) store(key string, val any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := c.clock()
+	if elem, ok := c.items[key]; ok {
+		node := elem.Value.(*cacheNode)
+		node.val = val
+		node.fetchedAt = now
+		c.order.MoveToBack(elem) // newest
 		return
 	}
-	if _, exists := c.store[key]; exists {
-		return
-	}
-	for len(c.store) >= c.cfg.MaxEntries {
-		var oldestKey string
-		var oldestAt time.Time
-		first := true
-		for k, ent := range c.store {
-			if first || ent.fetchedAt.Before(oldestAt) {
-				oldestKey, oldestAt, first = k, ent.fetchedAt, false
-			}
+	c.items[key] = c.order.PushBack(&cacheNode{key: key, val: val, fetchedAt: now})
+
+	for c.cfg.MaxEntries > 0 && len(c.items) > c.cfg.MaxEntries {
+		front := c.order.Front()
+		if front == nil {
+			break
 		}
-		delete(c.store, oldestKey)
+		oldest := c.order.Remove(front).(*cacheNode)
+		delete(c.items, oldest.key)
 	}
 }
 
