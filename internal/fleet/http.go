@@ -190,10 +190,11 @@ func buildEventsQuery(p EventsParams) url.Values {
 	if p.Limit > 0 {
 		q.Set("limit", strconv.Itoa(p.Limit))
 	}
-	for _, h := range p.HostIDs {
-		if h != "" {
-			q.Add("host_id", h)
-		}
+	if len(p.HostIDs) > 0 {
+		// Comma-separated, not repeatable: sigil-server (#75) deserializes
+		// host_id as a single Option<String> it comma-splits, matching the
+		// other multi-value filters below.
+		q.Set("host_id", strings.Join(p.HostIDs, ","))
 	}
 	if !p.Since.IsZero() {
 		q.Set("since", p.Since.UTC().Format(time.RFC3339))

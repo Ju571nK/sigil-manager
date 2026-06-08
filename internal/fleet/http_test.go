@@ -101,7 +101,12 @@ func TestHTTP_EventsQueryParams(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "abc", got.Query.Get("cursor"))
 	assert.Equal(t, "200", got.Query.Get("limit"))
-	assert.Equal(t, []string{"a", "b"}, got.Query["host_id"]) // repeatable
+	// Comma-separated single value, not repeatable: sigil-server #75 switched
+	// host_id from a Vec to an Option<String> it comma-splits, like the other
+	// multi-value filters. A repeatable ?host_id=a&host_id=b no longer filters
+	// on both hosts.
+	assert.Equal(t, "a,b", got.Query.Get("host_id"))
+	assert.Equal(t, []string{"a,b"}, got.Query["host_id"]) // exactly one param
 	assert.Equal(t, "2026-05-19T08:00:00Z", got.Query.Get("since"))
 	assert.Equal(t, "foo,bar", got.Query.Get("evidence_kind"))
 	assert.Equal(t, "warn", got.Query.Get("severity"))
