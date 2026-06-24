@@ -67,7 +67,7 @@ producer-side decision letter so the lineage is auditable.
 | F7  | Score scale | **0.0–10.0** float (CVSS-style, matches `AiGuardRiskAssessed.score`). **Locked — UI/UX spec §5.2 to be updated** from "0-100" to "0-10". | producer §9 Q1 |
 | F8  | Streaming | Polling only in v1 (UI/UX §7.2 = 5s). SSE/WebSocket deferred (producer Out-of-scope §8 → 3b.4.1 or sigil-cloud). | producer §8 |
 | F9  | Versioning | Path version (`/v1/`). Additive non-breaking (new fields, new endpoints, new evidence variants). Breaking → `/v2/`, both run ≥1 minor cycle. | (producer §7.3) |
-| F10 | "Alerts" definition | Server has no first-class alert concept, but **`/v1/meta.alerts_definition_default` exports the producer's recommended set** so consumer + server agree on the default. Consumer may override client-side. **Note:** as of sigil-server `0dce160` (2026-05-17), `open_alert_count_24h` in `/v1/fleet/risk` is implemented as the trailing-24h `warn`-severity event sum and does **not** filter by `alerts_definition_default` — divergence from producer spec §4.5. Tracked in §13.1. | producer §4.2 / §4.5 |
+| F10 | "Alerts" definition | Server has no first-class alert concept, but **`/v1/meta.alerts_definition_default` exports the producer's recommended set** so consumer + server agree on the default. Consumer may override client-side. **RESOLVED (sigil `8ebfd49`, #21, 2026-05-28):** `open_alert_count_24h` in `/v1/fleet/risk` now counts only the `alerts_definition_default` evidence kinds (1:1 via the `is_alert_evidence` helper), not every warn-severity event. The earlier `0dce160` divergence is closed — see §14.9.4. | producer §4.2 / §4.5 |
 | F11 | Server-side index backing | **In-memory per-host `HostSummary` HashMap** (`parking_lot::RwLock`). Rebuilt from JSONL on server boot. `/v1/events` filters do an **on-demand reverse JSONL scan** (no event-level index in v1). MVP target: ≤1000 hosts × 7 days × 30k events/day. | **B**, **F** |
 | F12 | Index update timing | **Synchronous.** `POST /v1/events` ingest handler updates `HostSummary` inline before responding. No async indexer task in v1. | **H** |
 | F13 | Compliance representation | `/v1/fleet/compliance` exposes **raw signals only**: `last_applied_policy_version`, `server_current_policy_version`, `version_drift`, `policy_expired_active`, `last_policy_reload_ts`, `signature_failures_24h`. **No `compliance_score`** — the UI derives status from raw signals. | **I**, producer §9 Q2 |
@@ -171,9 +171,31 @@ returns non-200.
     "evidence_kinds": ["ai_guard_risk_assessed"],
     "ai_guard_buckets": ["high", "critical"],
     "additional_kinds": ["policy_signature_invalid", "tls_failure", "host_id_fingerprint_drift", "agent_dying", "sender_lag_critical"]
+  },
+  "license": {
+    "state": "ok",
+    "licensed": true,
+    "expired": false,
+    "effective_max_hosts": 50,
+    "current_host_count": 12,
+    "active_window_days": 30,
+    "customer_id": "acme",
+    "license_id": "lic_…",
+    "not_after": "2027-01-01T00:00:00Z"
+  },
+  "audit_head": {
+    "seq": 4211,
+    "hash": "…",
+    "sig": "…",
+    "pubkey_id": "…",
+    "pubkey": "ed25519:…"
   }
 }
 ```
+
+`license` and `audit_head` are additive top-level fields shipped post-lock
+(sigil `bc9f000` / `2b5d61c`); see §14.9.3 for shapes and nullability.
+They do **not** bump `schema_version`.
 
 `alerts_definition_default` is the **producer's recommended set**. The
 consumer (`sigil-manager`) starts from this and may add/remove kinds in
@@ -718,23 +740,22 @@ consumer side knows what to compensate for, and so follow-up issues against
 | **Batch fetch** | Slide-over fetches per event. | Mitigation: aggressive client-side caching (LRU, 200 events). Acceptable for MVP analyst. |
 | **`open_event_counts_24h` definition** | Field name says "open" but server has no triage state — really means "events emitted in 24h". | Mitigation: in UI tooltip clarify it's a "raw count", not "outstanding alerts". |
 | **Alerts definition drift** | Server-computed `open_alert_count_24h` uses producer's recommendation; consumer overrides recompute. | Mitigation: UI labels server-side count differently from consumer-derived count when the override is non-default. |
-| **`open_alert_count_24h` spec/impl divergence** | Spec §4.5 says "events matching `alerts_definition_default`"; impl `0dce160` returns plain `sum_warn()`. | Mitigation: treat the field as "warn events in 24h", recompute precise alert counts client-side from `/v1/events`. Tracked as a follow-up issue (see §13.1). |
+| ~~**`open_alert_count_24h` spec/impl divergence**~~ **RESOLVED** | ~~Spec §4.5 says "events matching `alerts_definition_default`"; impl `0dce160` returns plain `sum_warn()`.~~ Fixed in sigil `8ebfd49` (#21, 2026-05-28): now counts only alerts-definition kinds, 1:1 with `/v1/meta` via `is_alert_evidence`. | No mitigation needed — trust the server count when the alerts definition equals the default; recompute client-side only when the operator overrides it. See §14.9.4. |
 
 ### 13.1 Suggested follow-up issues for `Ju571nK/sigil`
 
-- ✅ **Filed as [`Ju571nK/sigil#21`](https://github.com/Ju571nK/sigil/issues/21)
-  (2026-05-19):** `/v1/fleet/risk.open_alert_count_24h` should respect
-  `alerts_definition_default`. Current impl (`0dce160`,
-  `crates/sigil-server/src/routes/fleet_risk.rs:116`) returns
-  `h.counts_24h.sum_warn()`, which is the trailing-24h warn-severity
-  event sum and includes every warn-emitting Evidence variant
-  (`WatcherDegraded`, `ChannelStall`, `SenderLagCritical`,
-  `HostIdFingerprintDrift`, `AgentDying`, etc.). Producer spec §4.5
-  states the field should be the count matching
-  `alerts_definition_default` (`ai_guard_risk_assessed` with bucket
-  high/critical, plus the 5 additional kinds listed in §4.2). The
-  divergence misleads SOC analysts: a host with 100 `WatcherDegraded`
-  events and zero actionable alerts will show `open_alert_count_24h: 100`.
+- ✅ **CLOSED — [`Ju571nK/sigil#21`](https://github.com/Ju571nK/sigil/issues/21)
+  (filed 2026-05-19, fixed `8ebfd49` 2026-05-28):**
+  `/v1/fleet/risk.open_alert_count_24h` now respects
+  `alerts_definition_default`. The old impl (`0dce160`) returned
+  `h.counts_24h.sum_warn()` — the trailing-24h warn-severity event sum,
+  which included every warn-emitting Evidence variant (`WatcherDegraded`,
+  `ChannelStall`, etc.) and misled SOC analysts (a host with 100
+  `WatcherDegraded` events and zero actionable alerts showed
+  `open_alert_count_24h: 100`). The fix adds an hourly `alerts` bucket +
+  an `is_alert_evidence` helper kept 1:1 with `/v1/meta` by a drift-guard
+  test, so the count now matches `ai_guard_risk_assessed` (bucket
+  high/critical) plus the 5 additional kinds from §4.2. See §14.9.4.
 - Add `server_received_ts` to event ingest path; expose via `/v1/events`
   and use for `last_seen_ts` in fleet endpoints (codex #7, #21).
 - Add `/v1/observability/index` returning index lag, parse error count,
@@ -1029,3 +1050,154 @@ with an empty chain. No breaking change.
 
 Tracked consumer-side as `Ju571nK/sigil-manager#5`; producer issue
 `Ju571nK/sigil#24`.
+
+### 14.9 Post-0.5.0 wire batch — sigil-hook, AiTool growth, /v1/meta license + audit, D2 resolved (shipped 2026-05-20 → 2026-06-07, sigil main `c6d0018`)
+
+This entry absorbs every additive wire change the producer shipped
+between the 3b.3.1 lock (§14.8) and `sigil` workspace **v0.6.2**. None of
+it breaks the v1.0 contract — all changes are additive enum variants,
+`#[serde(default)]` fields, or new top-level `/v1/meta` keys. The
+consumer's tolerant decoders (`Evidence` keeps raw JSON + `Kind`;
+`EvidenceAiGuard.Tool` is a plain `string`) already survive them; this
+section records the surface so the rendering work (P2, see the action
+items) has an exact target.
+
+#### 14.9.1 `AiTool` enum — three new wire values + `tool_label`
+
+`event.rs` `AiTool` (the snake_case `tool` string inside
+`Evidence::AiGuardRiskAssessed` and the new hook evidences):
+
+| Wire string | Producer enum | Shipped | Notes |
+|---|---|---|---|
+| `"antigravity"` | `AiTool::Antigravity` | `b69b6b0` (#86, 2026-06-02) | Google Antigravity static parser |
+| `"other"` | `AiTool::Other` | `5ad5db3` (#95, 2026-06-03) | Generic catch-all for operator rule packs |
+| `"grok"` | `AiTool::Grok` | `3ea1efe` (#118, 2026-06-07) | Grok Build (xAI), observe + enforce |
+
+New sibling field on `Evidence::AiGuardRiskAssessed`:
+
+| Field | Shape | Serde |
+|---|---|---|
+| `tool_label` | `Option<String>` | `#[serde(default, skip_serializing_if = "Option::is_none")]` — absent when None |
+
+`tool_label` carries the operator-supplied display name when `tool ==
+"other"` (a rule pack names the tool the generic parser matched). It is
+**absent** for all built-in tools. The consumer should prefer
+`tool_label` over the raw `tool` string for the label **only** when
+`tool == "other"` and `tool_label` is present; otherwise fall back to
+the `humanTool()` mapping.
+
+#### 14.9.2 sigil-hook — four new `Evidence` kinds + `Confidence` + `source.kind=agent_hook`
+
+sigil-hook (runtime observe/enforce at the agent tool boundary) emits
+four new variants through `/v1/events`. `Evidence` is
+`#[serde(tag = "kind", rename_all = "snake_case")]`, so each appears as a
+new `kind` string the consumer's generic-evidence fallback already
+tolerates (§13 "Unknown evidence variant display").
+
+| `kind` wire string | Shipped | Payload fields (JSON keys) |
+|---|---|---|
+| `hook_invocation` | `29d09e0` (#83, 2026-06-02) | `agent` (AiTool), `peer_uid` (u32), `agent_session_id`?, `tool_use_id`?, `action_kind` (str), `other_label`?, `action_hash` (str), `action_preview`?, `capture_level` (str), `capture_status` (str) |
+| `hook_decision` | `c413a7d` (#106, 2026-06-05) | `agent`, `peer_uid`, `agent_session_id`?, `tool_use_id`?, `action_kind`, `action_hash`, `action_preview`?, `decision` (str), `rule_id`?, `deny_reason`?, `enforcement_mode` (str), `capture_level` |
+| `hook_config_drift` | `c413a7d` (#106, 2026-06-05) | `agent`, `peer_uid`, `drift_kind` (str), `settings_path` (str), `expected_command_hash` (str), `observed_command_hash`?, `expected_matcher`?, `observed_matcher`? |
+| `possible_hook_activity_silent` | `bef0e45` (#116, 2026-06-06) | `agent`, `uid`?, `last_hook_seen_at` (RFC3339), `last_session_activity_at`? (RFC3339), `window_secs` (u64), `probe_kind` (str), `path_hash`?, `probe_error`?, `scan_truncated` (bool), `confidence` (Confidence) |
+
+(`?` = `Option`, omitted/`null` when absent.)
+
+**`Confidence` enum** (`bef0e45`, #116) — `#[serde(rename_all =
+"snake_case")]`, wire values `"low"` / `"medium"` / `"high"`. Used by
+`possible_hook_activity_silent.confidence`.
+
+**New `source.kind` value** (`29d09e0`, #83): the `SourceKind` provenance
+discriminant gains `"agent_hook"` alongside the existing `"file_system"`,
+`"agent"`, and `"unknown"`. Hook evidences carry `source.kind ==
+"agent_hook"`. Any source-aware grouping/filter UI must tolerate it.
+
+**Alerts-definition impact:** none of the four hook kinds are in
+`/v1/meta.alerts_definition_default` as of v0.6.2, so they do **not**
+inflate `open_alert_count_24h`. `hook_decision` with `decision ==
+"deny"` is a candidate for a future alerts-definition addition — track,
+don't assume.
+
+#### 14.9.3 `/v1/meta` — `license` + `audit_head` top-level fields
+
+Two new top-level keys on `GET /v1/meta` (§5.2). Both are additive and do
+**not** bump `schema_version`.
+
+**`license`** (`bc9f000`, 2026-05-20) — a `LicenseStatus` object:
+
+```json
+"license": {
+  "state": "ok",
+  "licensed": true,
+  "expired": false,
+  "effective_max_hosts": 50,
+  "current_host_count": 12,
+  "active_window_days": 30,
+  "customer_id": "acme",
+  "license_id": "lic_…",
+  "not_after": "2027-01-01T00:00:00Z"
+}
+```
+
+`state` is `"ok"` or `"over_limit"` (snake_case). `customer_id`,
+`license_id`, `not_after` are `Option` (absent/null when unlicensed /
+open-source). This is the field consumer issue
+[`Ju571nK/sigil-manager#7`](https://github.com/Ju571nK/sigil-manager/issues/7)
+renders in the fleet UI (P2).
+
+**`audit_head`** (`2b5d61c`, 2026-05-21) — the signed head of the audit
+log, or `null` when audit signing is disabled / no key configured:
+
+```json
+"audit_head": {
+  "seq": 4211,
+  "hash": "…",
+  "sig": "…",
+  "pubkey_id": "…",
+  "pubkey": "ed25519:…"
+}
+```
+
+`pubkey` is prefixed `"ed25519:{base64}"`. The consumer treats this as
+opaque for now (display "audit signing: enabled, seq N" at most);
+verifying the chain is out of scope for the read console.
+
+#### 14.9.4 D2 RESOLVED — `open_alert_count_24h` now matches `alerts_definition_default`
+
+The §10 F10 / §13.1 divergence (server returned a plain `sum_warn()`
+that counted every warn-emitting Evidence, misleading analysts) is
+**closed**. Producer fixed it on main `8ebfd49` (#21, 2026-05-28):
+`/v1/fleet/risk.open_alert_count_24h` now counts only the
+alerts-definition evidence kinds via a new hourly `alerts` bucket + an
+`is_alert_evidence` helper that a drift-guard test
+(`is_alert_evidence_matches_meta_alerts_definition`) keeps **1:1** with
+`/v1/meta.alerts_definition_default`. Constituents:
+
+- `ai_guard_risk_assessed` with bucket ∈ {`high`, `critical`} (Low/Medium
+  excluded), plus
+- `policy_signature_invalid`, `tls_failure`, `host_id_fingerprint_drift`,
+  `agent_dying`, `sender_lag_critical`.
+
+The field now means what its name says. The §10 F10 note, the §13.1
+divergence rows, and the `RiskRow.OpenAlertCount24h` doc comment in
+`internal/fleet/client.go` are updated to reflect this. Consumers that
+were recomputing client-side from `/v1/events` to work around the
+divergence can now trust the server count when their alerts definition
+equals the default; client-side recompute is still required only when
+the operator **overrides** `alerts_definition_default`.
+
+#### 14.9.5 Consumer action items
+
+| # | Item | Where | Plan |
+|---|---|---|---|
+| 1 | `humanTool()` map `antigravity` / `grok` / `other` to display names + icons | `web/src/lib/labels.ts` | P2 |
+| 2 | Prefer `tool_label` over `tool` when `tool == "other"` | AI-Guard label render | P2 |
+| 3 | Render the 4 hook evidence kinds (not just generic fallback) in the Alerts queue | `web/src/components/AlertsQueue/` | P2 |
+| 4 | Render `/v1/meta.license` status badge | fleet UI | P2 (`#7`) |
+| 5 | Optionally surface `audit_head` ("audit signing: enabled, seq N") | Settings page | P2, optional |
+| 6 | D2 doc/comment corrections (§10 F10, §13.1, client.go RiskRow) | this contract + Go | **P1, done in this change** |
+| 7 | Go types unchanged — `Evidence` raw JSON + `Tool` string stay tolerant | `internal/fleet/` | no-op |
+
+Producer asks filed/tracked: D2 = `Ju571nK/sigil#21` (closed); license UI
+= `Ju571nK/sigil-manager#7` (open). No new producer ask is required — this
+batch is the consumer absorbing producer's shipped wire surface.
