@@ -166,7 +166,7 @@ function SlideOverBody({
         <SheetHeader className="p-0">
           <SheetTitle className="text-base font-semibold text-text-primary">
             {ag
-              ? `AI Guard risk · ${humanTool(ag.tool)}`
+              ? `AI Guard risk · ${humanTool(ag.tool, ag.tool_label)}`
               : humanKind(event.evidence?.kind ?? 'unknown')}
           </SheetTitle>
           <SheetDescription className="text-xs text-text-muted">
@@ -367,7 +367,7 @@ function FactGrid({
       </Fact>
       {ag && (
         <>
-          <Fact label="Tool">{humanTool(ag.tool)}</Fact>
+          <Fact label="Tool">{humanTool(ag.tool, ag.tool_label)}</Fact>
           <Fact label="Score">
             <span className="font-mono">{ag.score.toFixed(1)}</span>{' '}
             <span className="text-text-subtle">/ 10</span>

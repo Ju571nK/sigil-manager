@@ -62,7 +62,9 @@ export function EventsTable({ rows, isPending }: Props) {
                   {ev.host_id.split('-')[0]}
                 </Link>
               </td>
-              <td className="px-3 py-2 text-text-muted">{ag ? humanTool(ag.tool) : '—'}</td>
+              <td className="px-3 py-2 text-text-muted">
+                {ag ? humanTool(ag.tool, ag.tool_label) : '—'}
+              </td>
             </tr>
           );
         })}
