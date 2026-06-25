@@ -330,10 +330,12 @@ type RiskPage struct {
 
 // RiskRow is one row of `/v1/fleet/risk.rows` (§5.5).
 //
-// OpenAlertCount24h note: per contract §10 (D2 / Ju571nK/sigil#21) the
-// current producer impl returns `sum_warn()`, not the alerts-definition
-// match count. Treat as a coarse "warn events in 24h" indicator until the
-// follow-up ships.
+// OpenAlertCount24h note: per contract §14.9.4 (D2 / Ju571nK/sigil#21,
+// fixed sigil 8ebfd49 2026-05-28) the producer now counts only the
+// alerts-definition evidence kinds (1:1 with /v1/meta via is_alert_evidence),
+// not every warn-severity event. Trust this server count when the local
+// alerts definition equals the default; recompute from /v1/events only when
+// the operator overrides alerts_definition_default.
 type RiskRow struct {
 	HostID            string    `json:"host_id"`
 	Hostname          *string   `json:"hostname"`
