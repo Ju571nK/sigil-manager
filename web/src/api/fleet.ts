@@ -65,7 +65,21 @@ export interface Evidence {
 /** Decoded `ai_guard_risk_assessed` payload — Plan 02's main render path. */
 export interface AiGuardEvidence extends Evidence {
   kind: 'ai_guard_risk_assessed';
-  tool: 'claude_code' | 'codex' | 'claude_desktop' | 'continue_dev' | string;
+  tool:
+    | 'claude_code'
+    | 'codex'
+    | 'claude_desktop'
+    | 'continue_dev'
+    | 'antigravity'
+    | 'grok'
+    | 'other'
+    | string;
+  /**
+   * Operator-supplied label for `tool === "other"` rule-pack matches
+   * (contract §14.9.1). Absent for built-in tools. Pass to [`humanTool`] as
+   * its second arg so an "Other" match shows the operator's name.
+   */
+  tool_label?: string;
   scope: ScopeUserGlobal | ScopeProject | ScopeApplication;
   score: number;
   bucket: 'low' | 'medium' | 'high' | 'critical';
@@ -150,8 +164,10 @@ export interface RiskRow {
   reasons_count: number;
   assessed_ts: string;
   /**
-   * Trailing-24h warn-event count. Per contract §13.1 / issue #21 this is
-   * NOT alert-definition filtered — render it as "Warn 24h", not "alerts".
+   * Trailing-24h alert count. Per contract §14.9.4 (issue #21, sigil 8ebfd49)
+   * the producer now filters this to the alerts-definition evidence kinds
+   * (1:1 with /v1/meta) — it genuinely means "alerts in 24h". Recompute
+   * client-side only if the operator overrides alerts_definition_default.
    */
   open_alert_count_24h: number;
 }

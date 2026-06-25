@@ -139,7 +139,7 @@ const KIND_TITLES: Record<string, string> = {
 
 function computeTitle(ev: EventWithTriage, ag: ReturnType<typeof extractAiGuard>): string {
   if (ag) {
-    const tool = humanTool(ag.tool);
+    const tool = humanTool(ag.tool, ag.tool_label);
     const reason = ag.reasons?.[0]?.kind;
     return reason ? `AI Guard risk: ${humanKind(reason)} · ${tool}` : `AI Guard risk · ${tool}`;
   }
