@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { humanKind, humanTool, scopeLabel, shortPath } from './labels';
+import type { HookEvidence } from '@/api/fleet';
+import { hookTitle, humanKind, humanTool, scopeLabel, shortPath } from './labels';
 
 describe('humanTool', () => {
   it('maps the six known tool wire strings to display names', () => {
@@ -65,6 +66,57 @@ describe('shortPath', () => {
   it('truncates long paths to "…/" plus the last two segments', () => {
     expect(shortPath('/home/user/project/src/index.ts')).toBe('…/src/index.ts');
     expect(shortPath('a/b/c')).toBe('…/b/c');
+  });
+});
+
+describe('hookTitle', () => {
+  it('titles a hook invocation by agent tool (§14.9.2)', () => {
+    const h = { kind: 'hook_invocation', agent: 'grok', action_kind: 'bash' } as HookEvidence;
+    expect(hookTitle(h)).toBe('Hook activity · Grok');
+  });
+
+  it('titles a deny decision with the rule id', () => {
+    const h = {
+      kind: 'hook_decision',
+      agent: 'claude_code',
+      decision: 'deny',
+      rule_id: 'no-rm-rf',
+    } as HookEvidence;
+    expect(hookTitle(h)).toBe('Hook denied · Claude Code — no-rm-rf');
+  });
+
+  it('titles an allow decision without a rule', () => {
+    const h = { kind: 'hook_decision', agent: 'codex', decision: 'allow' } as HookEvidence;
+    expect(hookTitle(h)).toBe('Hook allowed · Codex');
+  });
+
+  it('passes an unknown decision verb through', () => {
+    const h = { kind: 'hook_decision', agent: 'codex', decision: 'shadow' } as HookEvidence;
+    expect(hookTitle(h)).toBe('Hook shadow · Codex');
+  });
+
+  it('titles config drift', () => {
+    const h = {
+      kind: 'hook_config_drift',
+      agent: 'cursor',
+      drift_kind: 'command_changed',
+    } as HookEvidence;
+    expect(hookTitle(h)).toBe('Hook config drift · Cursor');
+  });
+
+  it('titles possible silent activity', () => {
+    const h = { kind: 'possible_hook_activity_silent', agent: 'gemini' } as HookEvidence;
+    expect(hookTitle(h)).toBe('Possible silent hook · Gemini');
+  });
+
+  it('uses the operator other_label for an "other" tool invocation', () => {
+    const h = {
+      kind: 'hook_invocation',
+      agent: 'other',
+      other_label: 'Acme Agent',
+      action_kind: 'bash',
+    } as HookEvidence;
+    expect(hookTitle(h)).toBe('Hook activity · Acme Agent');
   });
 });
 
