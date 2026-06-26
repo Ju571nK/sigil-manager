@@ -1,7 +1,7 @@
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Check, Loader2, Search } from 'lucide-react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { type EventWithTriage, extractAiGuard } from '@/api/fleet';
+import { type EventWithTriage, extractAiGuard, extractHook, type HookEvidence } from '@/api/fleet';
 import type { TriageStatus } from '@/api/triage';
 import { ReasonList } from '@/components/ReasonList';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { useAppendNote, useTriageDetailOrNull, useUpsertTriage } from '@/hooks/useTriage';
-import { humanKind, humanTool, scopeLabel } from '@/lib/labels';
+import { hookTitle, humanKind, humanTool, scopeLabel } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -82,6 +82,7 @@ function SlideOverBody({
   noteInputRef: React.MutableRefObject<HTMLTextAreaElement | null>;
 }) {
   const ag = extractAiGuard(event);
+  const hook = extractHook(event);
   const triage = useTriageDetailOrNull(event.host_id, event.event_id);
   const upsert = useUpsertTriage();
   const appendNote = useAppendNote();
@@ -167,7 +168,9 @@ function SlideOverBody({
           <SheetTitle className="text-base font-semibold text-text-primary">
             {ag
               ? `AI Guard risk · ${humanTool(ag.tool, ag.tool_label)}`
-              : humanKind(event.evidence?.kind ?? 'unknown')}
+              : hook
+                ? hookTitle(hook)
+                : humanKind(event.evidence?.kind ?? 'unknown')}
           </SheetTitle>
           <SheetDescription className="text-xs text-text-muted">
             event_id <code className="font-mono">{event.event_id}</code>
@@ -189,7 +192,7 @@ function SlideOverBody({
             <div className="h-2 w-3/4 animate-pulse rounded bg-bg-elevated" />
           </div>
         )}
-        <FactGrid event={event} ag={ag} />
+        <FactGrid event={event} ag={ag} hook={hook} />
 
         {/* Actions */}
         <section>
@@ -356,9 +359,11 @@ function SlideOverBody({
 function FactGrid({
   event,
   ag,
+  hook,
 }: {
   event: EventWithTriage;
   ag: ReturnType<typeof extractAiGuard>;
+  hook: HookEvidence | null;
 }) {
   return (
     <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-y-1.5 text-xs">
@@ -376,6 +381,7 @@ function FactGrid({
           <Fact label="Reattested">{ag.is_reattestation ? 'yes' : 'no'}</Fact>
         </>
       )}
+      {hook && <HookFacts hook={hook} />}
       <Fact label="Time">
         <span title={event.ts}>{relativeOrEmpty(event.ts)} ago</span>
       </Fact>
@@ -388,6 +394,78 @@ function FactGrid({
       )}
     </dl>
   );
+}
+
+/**
+ * Per-kind facts for a sigil-hook evidence (contract §14.9.2). Each variant
+ * surfaces its salient fields; optional wire fields are rendered only when
+ * present so an absent `Option` doesn't show an empty row.
+ */
+function HookFacts({ hook }: { hook: HookEvidence }) {
+  const toolLabel = hook.kind === 'hook_invocation' ? hook.other_label : undefined;
+  return (
+    <>
+      <Fact label="Tool">{humanTool(hook.agent, toolLabel)}</Fact>
+      {hook.kind === 'hook_invocation' && (
+        <>
+          <Fact label="Action">{hook.action_kind}</Fact>
+          {hook.action_preview && (
+            <Fact label="Preview">
+              <code className="font-mono break-all">{hook.action_preview}</code>
+            </Fact>
+          )}
+          <Fact label="Capture">
+            {hook.capture_level} · {hook.capture_status}
+          </Fact>
+        </>
+      )}
+      {hook.kind === 'hook_decision' && (
+        <>
+          <Fact label="Decision">
+            <DecisionBadge decision={hook.decision} />
+          </Fact>
+          <Fact label="Action">{hook.action_kind}</Fact>
+          {hook.rule_id && <Fact label="Rule">{hook.rule_id}</Fact>}
+          {hook.deny_reason && <Fact label="Deny reason">{hook.deny_reason}</Fact>}
+          <Fact label="Enforcement">{hook.enforcement_mode}</Fact>
+        </>
+      )}
+      {hook.kind === 'hook_config_drift' && (
+        <>
+          <Fact label="Drift">{humanKind(hook.drift_kind)}</Fact>
+          <Fact label="Settings">
+            <code className="font-mono break-all">{hook.settings_path}</code>
+          </Fact>
+          {hook.expected_matcher && <Fact label="Expected">{hook.expected_matcher}</Fact>}
+          {hook.observed_matcher && <Fact label="Observed">{hook.observed_matcher}</Fact>}
+        </>
+      )}
+      {hook.kind === 'possible_hook_activity_silent' && (
+        <>
+          <Fact label="Confidence">{hook.confidence}</Fact>
+          <Fact label="Window">{hook.window_secs}s</Fact>
+          <Fact label="Last hook">
+            <span title={hook.last_hook_seen_at}>
+              {relativeOrEmpty(hook.last_hook_seen_at)} ago
+            </span>
+          </Fact>
+          <Fact label="Probe">{hook.probe_kind}</Fact>
+          {hook.scan_truncated && <Fact label="Scan">truncated</Fact>}
+        </>
+      )}
+    </>
+  );
+}
+
+/** Colors a hook decision: deny/block red, allow green, else muted. */
+function DecisionBadge({ decision }: { decision: string }) {
+  const tone =
+    decision === 'deny' || decision === 'block'
+      ? 'text-sev-critical'
+      : decision === 'allow'
+        ? 'text-status-healthy'
+        : 'text-text-body';
+  return <span className={cn('font-medium uppercase tracking-wide', tone)}>{decision}</span>;
 }
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
