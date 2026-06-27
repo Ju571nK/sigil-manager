@@ -11,6 +11,26 @@ describe('humanTool', () => {
     expect(humanTool('cursor')).toBe('Cursor');
   });
 
+  it('maps the post-0.5.0 tool wire strings (contract §14.9.1)', () => {
+    expect(humanTool('antigravity')).toBe('Antigravity');
+    expect(humanTool('grok')).toBe('Grok');
+    expect(humanTool('other')).toBe('Other');
+  });
+
+  it('prefers tool_label over "Other" when tool is "other" and a label is present', () => {
+    expect(humanTool('other', 'Acme Agent')).toBe('Acme Agent');
+  });
+
+  it('ignores tool_label for non-"other" tools (built-in mapping wins)', () => {
+    expect(humanTool('claude_code', 'Acme Agent')).toBe('Claude Code');
+  });
+
+  it('falls back to "Other" when tool is "other" with an empty/absent label', () => {
+    expect(humanTool('other', '')).toBe('Other');
+    expect(humanTool('other', null)).toBe('Other');
+    expect(humanTool('other', undefined)).toBe('Other');
+  });
+
   it('falls back to the raw string for unknown tools', () => {
     expect(humanTool('future_tool')).toBe('future_tool');
   });
