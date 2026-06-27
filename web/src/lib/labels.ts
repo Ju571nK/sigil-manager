@@ -1,7 +1,15 @@
 import type { Scope } from '@/api/fleet';
 
-/** Maps an AI-tool wire string (contract §14.5/§14.7) to a display name. */
-export function humanTool(tool: string): string {
+/**
+ * Maps an AI-tool wire string (contract §14.5/§14.7/§14.9.1) to a display name.
+ *
+ * `toolLabel` is the operator-supplied `tool_label` sibling field (§14.9.1):
+ * when `tool === "other"` and a non-empty label is present, that label wins
+ * over the generic "Other". It is ignored for every built-in tool, so the
+ * mapping stays stable for known wire values.
+ */
+export function humanTool(tool: string, toolLabel?: string | null): string {
+  if (tool === 'other' && toolLabel) return toolLabel;
   switch (tool) {
     case 'claude_code':
       return 'Claude Code';
@@ -15,6 +23,12 @@ export function humanTool(tool: string): string {
       return 'Gemini';
     case 'cursor':
       return 'Cursor';
+    case 'antigravity':
+      return 'Antigravity';
+    case 'grok':
+      return 'Grok';
+    case 'other':
+      return 'Other';
     default:
       return tool;
   }
