@@ -110,6 +110,93 @@ export interface ReasonLike {
   [key: string]: unknown;
 }
 
+// -----------------------------------------------------------------------------
+// sigil-hook evidence (contract §14.9.2)
+// -----------------------------------------------------------------------------
+// Four kinds emitted at the agent tool boundary. All carry `agent` (an AiTool
+// wire string) and `peer_uid`; only hook_invocation carries `other_label` (the
+// operator label for an `agent === "other"` match). Optional (`?`) fields are
+// `Option` on the wire and arrive absent/null.
+
+/** A runtime tool invocation observed by sigil-hook. */
+export interface HookInvocationEvidence extends Evidence {
+  kind: 'hook_invocation';
+  agent: string;
+  peer_uid: number;
+  agent_session_id?: string;
+  tool_use_id?: string;
+  action_kind: string;
+  other_label?: string;
+  action_hash: string;
+  action_preview?: string;
+  capture_level: string;
+  capture_status: string;
+}
+
+/** An allow/deny decision sigil-hook made at the tool boundary. */
+export interface HookDecisionEvidence extends Evidence {
+  kind: 'hook_decision';
+  agent: string;
+  peer_uid: number;
+  agent_session_id?: string;
+  tool_use_id?: string;
+  action_kind: string;
+  action_hash: string;
+  action_preview?: string;
+  decision: string;
+  rule_id?: string;
+  deny_reason?: string;
+  enforcement_mode: string;
+  capture_level: string;
+}
+
+/** The agent's on-disk hook config drifted from what sigil installed. */
+export interface HookConfigDriftEvidence extends Evidence {
+  kind: 'hook_config_drift';
+  agent: string;
+  peer_uid: number;
+  drift_kind: string;
+  settings_path: string;
+  expected_command_hash: string;
+  observed_command_hash?: string;
+  expected_matcher?: string;
+  observed_matcher?: string;
+}
+
+/** A session looked active but no hook fired in the window — possible bypass. */
+export interface PossibleHookActivitySilentEvidence extends Evidence {
+  kind: 'possible_hook_activity_silent';
+  agent: string;
+  uid?: number;
+  last_hook_seen_at: string;
+  last_session_activity_at?: string;
+  window_secs: number;
+  probe_kind: string;
+  path_hash?: string;
+  probe_error?: string;
+  scan_truncated: boolean;
+  confidence: 'low' | 'medium' | 'high' | string;
+}
+
+/** Union of the four sigil-hook evidence variants. */
+export type HookEvidence =
+  | HookInvocationEvidence
+  | HookDecisionEvidence
+  | HookConfigDriftEvidence
+  | PossibleHookActivitySilentEvidence;
+
+const HOOK_KINDS = new Set<string>([
+  'hook_invocation',
+  'hook_decision',
+  'hook_config_drift',
+  'possible_hook_activity_silent',
+]);
+
+/** Returns the typed [`HookEvidence`] view if the event is a hook kind, else null. */
+export function extractHook(ev: Event): HookEvidence | null {
+  return HOOK_KINDS.has(ev.evidence?.kind) ? (ev.evidence as HookEvidence) : null;
+}
+
 /** Server-side join: triage view embedded per event, or null if untriaged. */
 export interface TriageView {
   status: 'open' | 'acknowledged' | 'investigating' | 'resolved';
