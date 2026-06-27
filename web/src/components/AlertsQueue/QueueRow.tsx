@@ -1,5 +1,5 @@
-import { type EventWithTriage, extractAiGuard } from '@/api/fleet';
-import { humanKind, humanTool } from '@/lib/labels';
+import { type EventWithTriage, extractAiGuard, extractHook } from '@/api/fleet';
+import { hookTitle, humanKind, humanTool } from '@/lib/labels';
 import { bucketTextColor } from '@/lib/severity';
 import { relativeAge } from '@/lib/time';
 import { cn } from '@/lib/utils';
@@ -143,5 +143,7 @@ function computeTitle(ev: EventWithTriage, ag: ReturnType<typeof extractAiGuard>
     const reason = ag.reasons?.[0]?.kind;
     return reason ? `AI Guard risk: ${humanKind(reason)} · ${tool}` : `AI Guard risk · ${tool}`;
   }
+  const hook = extractHook(ev);
+  if (hook) return hookTitle(hook);
   return KIND_TITLES[ev.evidence?.kind] ?? humanKind(ev.evidence?.kind ?? 'unknown');
 }
