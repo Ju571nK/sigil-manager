@@ -173,12 +173,42 @@ type Healthz struct {
 // Response: /v1/meta (§5.2)
 // -----------------------------------------------------------------------------
 
-// Meta is the body of `GET /v1/meta` (§5.2).
+// Meta is the body of `GET /v1/meta` (§5.2). License and AuditHead are
+// additive post-lock fields (§14.9.3); older servers omit them, so they are
+// pointers that stay nil when absent and are passed through verbatim.
 type Meta struct {
 	ServerVersion           string                  `json:"server_version"`
 	SchemaVersion           int                     `json:"schema_version"`
 	TS                      time.Time               `json:"ts"`
 	AlertsDefinitionDefault AlertsDefinitionDefault `json:"alerts_definition_default"`
+	License                 *LicenseStatus          `json:"license,omitempty"`
+	AuditHead               *AuditHead              `json:"audit_head,omitempty"`
+}
+
+// LicenseStatus is the optional license block on `/v1/meta` (contract
+// §14.9.3, producer sigil `bc9f000`). Nil on open-source / older servers.
+// The console renders it read-only; enforcement lives in the producer.
+type LicenseStatus struct {
+	State             string     `json:"state"` // "ok" | "over_limit"
+	Licensed          bool       `json:"licensed"`
+	Expired           bool       `json:"expired"`
+	EffectiveMaxHosts int        `json:"effective_max_hosts"`
+	CurrentHostCount  int        `json:"current_host_count"`
+	ActiveWindowDays  int        `json:"active_window_days"`
+	CustomerID        *string    `json:"customer_id"`
+	LicenseID         *string    `json:"license_id"`
+	NotAfter          *time.Time `json:"not_after"`
+}
+
+// AuditHead is the optional signed head of the audit log on `/v1/meta`
+// (contract §14.9.3, producer sigil `2b5d61c`). Nil when audit signing is
+// disabled. The console treats it as opaque (it does not verify the chain).
+type AuditHead struct {
+	Seq      int64  `json:"seq"`
+	Hash     string `json:"hash"`
+	Sig      string `json:"sig"`
+	PubkeyID string `json:"pubkey_id"`
+	Pubkey   string `json:"pubkey"` // "ed25519:{base64}"
 }
 
 // AlertsDefinitionDefault is the producer's recommended alert set. Per F10
