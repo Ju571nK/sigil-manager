@@ -170,7 +170,7 @@ returns non-200.
   "alerts_definition_default": {
     "evidence_kinds": ["ai_guard_risk_assessed"],
     "ai_guard_buckets": ["high", "critical"],
-    "additional_kinds": ["policy_signature_invalid", "tls_failure", "host_id_fingerprint_drift", "agent_dying", "sender_lag_critical"]
+    "additional_kinds": ["policy_signature_invalid", "tls_failure", "host_id_fingerprint_drift", "agent_dying", "sender_lag_critical", "ai_guard_toggle_drift"]
   },
   "license": {
     "state": "ok",
@@ -1176,7 +1176,8 @@ alerts-definition evidence kinds via a new hourly `alerts` bucket + an
 - `ai_guard_risk_assessed` with bucket ∈ {`high`, `critical`} (Low/Medium
   excluded), plus
 - `policy_signature_invalid`, `tls_failure`, `host_id_fingerprint_drift`,
-  `agent_dying`, `sender_lag_critical`.
+  `agent_dying`, `sender_lag_critical`, and (from v0.7.0, §14.10)
+  `ai_guard_toggle_drift`.
 
 The field now means what its name says. The §10 F10 note, the §13.1
 divergence rows, and the `RiskRow.OpenAlertCount24h` doc comment in
@@ -1201,3 +1202,53 @@ the operator **overrides** `alerts_definition_default`.
 Producer asks filed/tracked: D2 = `Ju571nK/sigil#21` (closed); license UI
 = `Ju571nK/sigil-manager#7` (open). No new producer ask is required — this
 batch is the consumer absorbing producer's shipped wire surface.
+
+### 14.10 Phase v0.7.0 — `ai_guard_toggle_drift` evidence kind (shipped 2026-06-28, sigil main `3aaa675`)
+
+The producer's v0.7.0 (`sigil#186` / `#147`) adds **dangerous-toggle
+OFF→ON drift detection**: when an agent's config flips a dangerous setting
+on (auto-approval, sandbox-disabled, …), AI-Guard emits a new evidence
+variant. Additive — the consumer's tolerant decoders already survive it;
+this section records the surface for dedicated rendering.
+
+#### 14.10.1 New `Evidence` kind `ai_guard_toggle_drift`
+
+`#[serde(tag = "kind", rename_all = "snake_case")]`, so it arrives as a new
+`kind` string. It is an **AI-Guard-family** variant — it carries `tool` /
+`scope` / `tool_label` like `ai_guard_risk_assessed`, but **no**
+`score` / `bucket` / `reasons` (the standing risk rides the normal
+`AiGuardRiskAssessed` reasons; this event marks only the toggle change).
+
+| `kind` | Shipped | Payload fields (JSON keys) |
+|---|---|---|
+| `ai_guard_toggle_drift` | `9eb1074` (#186, 2026-06-28) | `tool` (AiTool), `scope` (AiGuardScope — same `user_global`/`project`/`application` shapes as §14.2), `toggle` (str, e.g. `"auto_approval_enabled"`, `"sandbox_disabled"`), `rule_pack_id`? , `tool_label`? |
+
+`rule_pack_id` and `tool_label` are `#[serde(default,
+skip_serializing_if)]` (absent when None); `tool_label` carries the
+operator name for a `tool == "other"` match, same rule as §14.9.1.
+
+#### 14.10.2 Now an alert kind — affects `open_alert_count_24h`
+
+Unlike the four sigil-hook kinds (§14.9.2), `ai_guard_toggle_drift` **is**
+added to `/v1/meta.alerts_definition_default.additional_kinds` (`meta.rs`)
+and to the server's `is_alert_evidence` helper
+(`fleet_index_update.rs`). So:
+
+- It counts toward `/v1/fleet/risk.open_alert_count_24h` (the "Alerts 24h"
+  column) — no consumer code change needed; the server count just includes
+  it. The §5.2 `additional_kinds` example and the §14.9.4 constituents list
+  are updated to add it.
+- A consumer that recomputes alerts client-side (operator override of the
+  alerts definition) must include `ai_guard_toggle_drift` to stay 1:1 with
+  the producer default.
+
+#### 14.10.3 Consumer action items
+
+| # | Item | Where | Plan |
+|---|---|---|---|
+| 1 | Dedicated render — title `AI Guard toggle drift · {Tool}` + facts (toggle, scope, rule pack) | `extractToggleDrift` + `SlideOver`/`QueueRow` | done in this change |
+| 2 | `toggle` string humanized via `humanKind` (`auto_approval_enabled` → "Auto Approval Enabled") | `SlideOver` | done |
+| 3 | Go types unchanged — flows as raw JSON; alert count is server-side | `internal/fleet/` | no-op |
+
+No new producer ask — this is the consumer absorbing v0.7.0's shipped wire
+surface.

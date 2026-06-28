@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type Event, extractHook } from './fleet';
+import { type Event, extractHook, extractToggleDrift } from './fleet';
 
 /** Minimal Event wrapper around an evidence payload for extractor tests. */
 function ev(evidence: Record<string, unknown>): Event {
@@ -33,5 +33,26 @@ describe('extractHook', () => {
   it('returns null for non-hook evidence', () => {
     expect(extractHook(ev({ kind: 'ai_guard_risk_assessed', tool: 'codex' }))).toBeNull();
     expect(extractHook(ev({ kind: 'heartbeat' }))).toBeNull();
+  });
+});
+
+describe('extractToggleDrift', () => {
+  it('returns the typed view for ai_guard_toggle_drift (§14.10)', () => {
+    const d = extractToggleDrift(
+      ev({
+        kind: 'ai_guard_toggle_drift',
+        tool: 'claude_code',
+        scope: { kind: 'user_global' },
+        toggle: 'auto_approval_enabled',
+      }),
+    );
+    expect(d?.kind).toBe('ai_guard_toggle_drift');
+    expect(d?.toggle).toBe('auto_approval_enabled');
+    expect(d?.tool).toBe('claude_code');
+  });
+
+  it('returns null for other evidence (incl. ai_guard_risk_assessed)', () => {
+    expect(extractToggleDrift(ev({ kind: 'ai_guard_risk_assessed', tool: 'codex' }))).toBeNull();
+    expect(extractToggleDrift(ev({ kind: 'hook_decision', agent: 'grok' }))).toBeNull();
   });
 });
