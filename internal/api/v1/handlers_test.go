@@ -203,6 +203,12 @@ func TestFleet_Meta_Passthrough(t *testing.T) {
 	require.NoError(t, json.Unmarshal(body, &meta))
 	assert.Equal(t, 1, meta.SchemaVersion)
 	assert.Contains(t, meta.AlertsDefinitionDefault.EvidenceKinds, "ai_guard_risk_assessed")
+
+	// License block passes through verbatim (contract §14.9.3 / issue #7).
+	require.NotNil(t, meta.License, "license block should pass through")
+	assert.Equal(t, "ok", meta.License.State)
+	assert.Equal(t, 50, meta.License.EffectiveMaxHosts)
+	assert.GreaterOrEqual(t, meta.License.CurrentHostCount, 0)
 }
 
 func TestFleet_Events_QueryPassthrough(t *testing.T) {
