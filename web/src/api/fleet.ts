@@ -15,6 +15,31 @@ export interface HealthzResponse {
   ts: string;
 }
 
+/**
+ * Optional license block on `/v1/meta` (contract §14.9.3). Absent on
+ * open-source / older servers, so `MetaResponse.license` is optional.
+ */
+export interface LicenseStatus {
+  state: 'ok' | 'over_limit' | string;
+  licensed: boolean;
+  expired: boolean;
+  effective_max_hosts: number;
+  current_host_count: number;
+  active_window_days: number;
+  customer_id: string | null;
+  license_id: string | null;
+  not_after: string | null;
+}
+
+/** Optional signed audit-log head on `/v1/meta` (§14.9.3); opaque to the console. */
+export interface AuditHead {
+  seq: number;
+  hash: string;
+  sig: string;
+  pubkey_id: string;
+  pubkey: string;
+}
+
 export interface MetaResponse {
   server_version: string;
   schema_version: number;
@@ -24,6 +49,8 @@ export interface MetaResponse {
     ai_guard_buckets: string[];
     additional_kinds: string[];
   };
+  license?: LicenseStatus;
+  audit_head?: AuditHead | null;
 }
 
 export function fleetHealthz(): Promise<HealthzResponse> {
