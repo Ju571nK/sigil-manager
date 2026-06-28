@@ -341,6 +341,9 @@ func latestAssessed(cr *CurrentRisk) time.Time {
 //     coverage described on MockClient.
 //   - 32 events spanning seed-24h .. seed; tool + scope unions cover §14.5.
 func (m *MockClient) build() {
+	mockCustomer := "mock-customer"
+	mockLicenseID := "lic_mock"
+	licenseUntil := m.seed.Add(180 * 24 * time.Hour)
 	m.meta = Meta{
 		ServerVersion: "0.5.0-mock",
 		SchemaVersion: 1,
@@ -349,6 +352,17 @@ func (m *MockClient) build() {
 			EvidenceKinds:   []string{"ai_guard_risk_assessed"},
 			AiGuardBuckets:  []string{"high", "critical"},
 			AdditionalKinds: []string{"policy_signature_invalid", "tls_failure", "host_id_fingerprint_drift", "agent_dying", "sender_lag_critical"},
+		},
+		License: &LicenseStatus{
+			State:             "ok",
+			Licensed:          true,
+			Expired:           false,
+			EffectiveMaxHosts: 50,
+			CurrentHostCount:  5,
+			ActiveWindowDays:  30,
+			CustomerID:        &mockCustomer,
+			LicenseID:         &mockLicenseID,
+			NotAfter:          &licenseUntil,
 		},
 	}
 	signedAt := m.seed.Add(-48 * time.Hour)
