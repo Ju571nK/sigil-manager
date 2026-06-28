@@ -1,7 +1,14 @@
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Check, Loader2, Search } from 'lucide-react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { type EventWithTriage, extractAiGuard, extractHook, type HookEvidence } from '@/api/fleet';
+import {
+  type EventWithTriage,
+  extractAiGuard,
+  extractHook,
+  extractToggleDrift,
+  type HookEvidence,
+  type ToggleDriftEvidence,
+} from '@/api/fleet';
 import type { TriageStatus } from '@/api/triage';
 import { ReasonList } from '@/components/ReasonList';
 import { Button } from '@/components/ui/button';
@@ -83,6 +90,7 @@ function SlideOverBody({
 }) {
   const ag = extractAiGuard(event);
   const hook = extractHook(event);
+  const drift = extractToggleDrift(event);
   const triage = useTriageDetailOrNull(event.host_id, event.event_id);
   const upsert = useUpsertTriage();
   const appendNote = useAppendNote();
@@ -170,7 +178,9 @@ function SlideOverBody({
               ? `AI Guard risk · ${humanTool(ag.tool, ag.tool_label)}`
               : hook
                 ? hookTitle(hook)
-                : humanKind(event.evidence?.kind ?? 'unknown')}
+                : drift
+                  ? `AI Guard toggle drift · ${humanTool(drift.tool, drift.tool_label)}`
+                  : humanKind(event.evidence?.kind ?? 'unknown')}
           </SheetTitle>
           <SheetDescription className="text-xs text-text-muted">
             event_id <code className="font-mono">{event.event_id}</code>
@@ -192,7 +202,7 @@ function SlideOverBody({
             <div className="h-2 w-3/4 animate-pulse rounded bg-bg-elevated" />
           </div>
         )}
-        <FactGrid event={event} ag={ag} hook={hook} />
+        <FactGrid event={event} ag={ag} hook={hook} drift={drift} />
 
         {/* Actions */}
         <section>
@@ -360,10 +370,12 @@ function FactGrid({
   event,
   ag,
   hook,
+  drift,
 }: {
   event: EventWithTriage;
   ag: ReturnType<typeof extractAiGuard>;
   hook: HookEvidence | null;
+  drift: ToggleDriftEvidence | null;
 }) {
   return (
     <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-y-1.5 text-xs">
@@ -382,6 +394,7 @@ function FactGrid({
         </>
       )}
       {hook && <HookFacts hook={hook} />}
+      {drift && <ToggleDriftFacts drift={drift} />}
       <Fact label="Time">
         <span title={event.ts}>{relativeOrEmpty(event.ts)} ago</span>
       </Fact>
@@ -453,6 +466,24 @@ function HookFacts({ hook }: { hook: HookEvidence }) {
           {hook.scan_truncated && <Fact label="Scan">truncated</Fact>}
         </>
       )}
+    </>
+  );
+}
+
+/**
+ * Facts for an `ai_guard_toggle_drift` evidence (contract §14.10): a
+ * dangerous toggle that flipped OFF→ON. Shares the tool/scope shape with
+ * AI-Guard risk but has no score/bucket.
+ */
+function ToggleDriftFacts({ drift }: { drift: ToggleDriftEvidence }) {
+  return (
+    <>
+      <Fact label="Tool">{humanTool(drift.tool, drift.tool_label)}</Fact>
+      <Fact label="Toggle">
+        <span className="text-sev-critical">{humanKind(drift.toggle)}</span>
+      </Fact>
+      <Fact label="Scope">{scopeLabel(drift.scope)}</Fact>
+      {drift.rule_pack_id && <Fact label="Rule pack">{drift.rule_pack_id}</Fact>}
     </>
   );
 }
