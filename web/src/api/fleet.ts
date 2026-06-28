@@ -224,6 +224,27 @@ export function extractHook(ev: Event): HookEvidence | null {
   return HOOK_KINDS.has(ev.evidence?.kind) ? (ev.evidence as HookEvidence) : null;
 }
 
+/**
+ * `ai_guard_toggle_drift` evidence (contract §14.10): a dangerous toggle
+ * flipped OFF→ON. AI-Guard-family — carries `tool`/`scope`/`tool_label` like
+ * `ai_guard_risk_assessed`, but no score/bucket/reasons.
+ */
+export interface ToggleDriftEvidence extends Evidence {
+  kind: 'ai_guard_toggle_drift';
+  tool: string;
+  scope: Scope;
+  toggle: string;
+  rule_pack_id?: string;
+  tool_label?: string;
+}
+
+/** Returns the typed [`ToggleDriftEvidence`] view if the event matches, else null. */
+export function extractToggleDrift(ev: Event): ToggleDriftEvidence | null {
+  return ev.evidence?.kind === 'ai_guard_toggle_drift'
+    ? (ev.evidence as ToggleDriftEvidence)
+    : null;
+}
+
 /** Server-side join: triage view embedded per event, or null if untriaged. */
 export interface TriageView {
   status: 'open' | 'acknowledged' | 'investigating' | 'resolved';
