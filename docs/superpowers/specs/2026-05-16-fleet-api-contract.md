@@ -1252,3 +1252,66 @@ and to the server's `is_alert_evidence` helper
 
 No new producer ask — this is the consumer absorbing v0.7.0's shipped wire
 surface.
+
+### 14.11 `AiGuardReason` variant census (through 0.7.1-pre, sigil main `580d2b6`, 2026-07-01)
+
+Prior §14 entries recorded reason variants only when a phase note called
+them out (§14.2 listed the 3b.1 five; §14.7 added
+`mcp_server_local_command`; §14.8 added `source_chain`). That left the
+enum under-mirrored: consumer issue
+[`Ju571nK/sigil-manager#22`](https://github.com/Ju571nK/sigil-manager/issues/22)
+flagged `mcp_server_suspicious_launcher` as missing, and a full diff
+against producer `event.rs` found nine more undocumented variants. This
+entry is the **complete census** of `AiGuardReason` as of `580d2b6`
+(v0.7.1-pre) — future phases add deltas against this table.
+
+Reasons ride inside `ai_guard_risk_assessed.reasons[]`. The enum is
+`#[serde(tag = "kind", rename_all = "snake_case")]`; every variant is
+additive and the consumer's open-shape `ReasonLike` (raw JSON + common
+fields) tolerates all of them. `?` = `Option`/absent-able.
+
+| `kind` | Fields | Shipped | §14 note |
+|---|---|---|---|
+| `destructive_in_inline_command` | `pattern`, `hook_event`, `executor` | `f613282` (3b.1, 2026-05-16) | §14.2 |
+| `destructive_in_hook_script` | `pattern`, `path`, `source_chain`? | `f613282` (3b.1) | §14.2, §14.8 |
+| `external_script_unscanned` | `path` | `f613282` (3b.1) | §14.2 |
+| `no_sandbox` | `executor` | `f613282` (3b.1) | §14.2 |
+| `broad_matcher` | `hook_event`, `matcher` | `f613282` (3b.1) | **NEW here** — was in the 3b.1 commit but never listed |
+| `permissions_deny_empty` | *(none)* | `f613282` (3b.1) | **NEW here** — ditto |
+| `permissions_allow_broad` | `rule` | `f613282` (3b.1) | **NEW here** — ditto |
+| `sandbox_disabled` | *(none)* | `f613282` (3b.1) | **NEW here** — ditto |
+| `mcp_server_remote` | `server_name`, `url` | `f613282` (3b.1) | §14.2 |
+| `mcp_server_local_command` | `server_name`, `command` | 3b.7 | §14.7 |
+| `trusted_mcp_server` | `server_name` | `1066bae` (3b.8, 2026-05-23) | **NEW here** |
+| `auto_approval_enabled` | `mode` | `1066bae` (3b.8, 2026-05-23) | **NEW here** (the *reason*; the §14.10 toggle string of the same name is separate) |
+| `mcp_server_suspicious_launcher` | `server_name`, `command`, `shape`, `evidence` | `34828f5` (#128, 2026-06-10) | **NEW here** — the `#22` gap |
+| `project_mcp_auto_enabled` | `mechanism` | `9b35ef6` (#153, 2026-06-13) | **NEW here** — TrustFall class, POSTURE |
+| `instruction_file_directive` | `path`, `directive_kind`, `snippet` | `6440fe4` (#155, 2026-06-13) | **NEW here** — POSTURE, advisory only |
+| `unattended_scheduled_task` | `name` | `580d2b6` (#192, 2026-07-01) | **NEW here** — POSTURE |
+
+**Sub-enums (stable wire strings — producer marks renames as breaking):**
+
+- `shape` (`LauncherShape`, on `mcp_server_suspicious_launcher`):
+  `"shell"` | `"transient_path"`. `evidence` is the token that triggered
+  the verdict — a `"bash -c"`-style string for shell, the matched path
+  for transient_path.
+- `directive_kind` (`InstructionDirectiveKind`, on
+  `instruction_file_directive`): `"fetch_pipe"` | `"destructive"` |
+  `"obfuscation"` | `"override_marker"`.
+
+**Rubric kind_keys (weight overrides):** #128 added `mcp_launcher_shell`
++ `mcp_launcher_transient_path` (both default 3.0); #192 grew the table
+further. The consumer does **not** enumerate or display rubric weights,
+so this stays a no-op here — noted for whoever builds a weight-display
+feature later (it must not hardcode the kind list).
+
+**Consumer action items:**
+
+| # | Item | Where | Plan |
+|---|---|---|---|
+| 1 | `ReasonList` surfaces the new informative fields (`shape`+`evidence`, `mechanism`, `mode`, `rule`, `matcher`, `name`, `path`, `directive_kind`+`snippet`) inline when present | `web/src/components/ReasonList.tsx` | done in this change |
+| 2 | Go types unchanged — reasons stay raw JSON in `Evidence` | `internal/fleet/` | no-op |
+| 3 | Future §14 entries list reason deltas against **this** table | this doc | process |
+
+Closes consumer issue `#22`. `#190` (scan remediation hints) and `#189`
+(installer) shipped in the same producer window with **no** wire change.
