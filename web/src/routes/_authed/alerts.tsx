@@ -176,10 +176,8 @@ function AlertsPage() {
     },
     '?': () => setCheatsheetOpen(true),
     'g a': () => navigate({ to: '/alerts' }),
-    // Plans 03/05 — leave bound so users hitting the shortcut hear a
-    // soft "no-op" instead of unrelated text input.
-    'g f': () => undefined,
-    'g s': () => undefined,
+    'g f': () => navigate({ to: '/fleet' }),
+    'g s': () => navigate({ to: '/settings' }),
   });
 
   // Sync the cheatsheet's onOpenChange close path to ESC handler.
