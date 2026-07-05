@@ -10,8 +10,8 @@ import { cn } from '@/lib/utils';
 /**
  * Top navigation strip. Per UI/UX §4:
  *   - Brand mark on the left (◆ sigil).
- *   - Primary nav items: Alerts (active in Plan 02), Fleet (active in
- *     Plan 03, links to the /fleet section); Settings still stubbed.
+ *   - Primary nav items: Alerts (Plan 02), Fleet (Plan 03), Settings
+ *     (UI/UX §5.4 minimal stub — connection/license/audit/auth read-only).
  *   - Connection-state pill on the right showing sigil-server liveness;
  *     polled every 10 s via /api/v1/fleet/healthz so the operator knows
  *     immediately when the upstream goes away.
@@ -64,7 +64,14 @@ export function TopNav() {
           >
             Fleet
           </Link>
-          <NavStub label="Settings" hint="Plan 05" />
+          <Link
+            to="/settings"
+            activeProps={{ className: 'text-text-primary bg-bg-elevated' }}
+            inactiveProps={{ className: 'text-text-muted hover:text-text-primary' }}
+            className="rounded px-2.5 py-1 transition-colors"
+          >
+            Settings
+          </Link>
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
@@ -120,16 +127,5 @@ function ConnectionPill({ state }: { state: ConnectionState }) {
       <span className={cn('inline-block h-1.5 w-1.5 rounded-full', dotColor[state])} />
       <span>{labels[state]}</span>
     </div>
-  );
-}
-
-function NavStub({ label, hint }: { label: string; hint: string }) {
-  return (
-    <span
-      className="rounded px-2.5 py-1 text-text-subtle cursor-not-allowed"
-      title={`Coming in ${hint}`}
-    >
-      {label}
-    </span>
   );
 }

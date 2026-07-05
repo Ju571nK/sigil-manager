@@ -24,8 +24,8 @@ const SHORTCUTS: Array<[label: string, keys: string]> = [
   ['Add note', 'n'],
   ['Focus search', '/'],
   ['Go to Alerts', 'g a'],
-  ['Go to Fleet  (Plan 03)', 'g f'],
-  ['Go to Settings  (Plan 05)', 'g s'],
+  ['Go to Fleet', 'g f'],
+  ['Go to Settings', 'g s'],
   ['Show shortcuts', '?'],
 ];
 
