@@ -9,10 +9,15 @@ const META_STALE_MS = 5 * 60_000;
  * [`useAlerts`], so the license banner / fleet header reuse the cached
  * response instead of firing a second request.
  */
-export function useFleetMeta() {
+export function useFleetMeta(
+  options: { refetchInterval?: number; refetchOnMount?: 'always' } = {},
+) {
   return useQuery({
     queryKey: ['fleet', 'meta'],
     queryFn: fleetMeta,
     staleTime: META_STALE_MS,
+    retry: false,
+    refetchIntervalInBackground: false,
+    ...options,
   });
 }

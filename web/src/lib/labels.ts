@@ -42,20 +42,11 @@ export function humanKind(kind: string): string {
     .join(' ');
 }
 
-/** Maps a hook_decision `decision` wire string to a past-tense verb. Unknown
- *  decisions pass through unchanged (so a future variant still reads sensibly). */
-const HOOK_DECISION_VERB: Record<string, string> = {
-  deny: 'denied',
-  block: 'denied',
-  allow: 'allowed',
-  warn: 'warned',
-};
-
 /**
  * Builds a one-line queue/slide-over title for a sigil-hook evidence
- * (contract §14.9.2). Always leads with the agent tool (via [`humanTool`],
- * honoring `other_label` for an `agent === "other"` invocation); a deny/allow
- * decision additionally surfaces the rule id when present.
+ * (contract §14.9.2). Shows the agent, decision and reported mode without
+ * inferring an execution outcome. Invocations honor `other_label`; decisions
+ * include the rule ID when present.
  */
 export function hookTitle(hook: HookEvidence): string {
   const label = hook.kind === 'hook_invocation' ? hook.other_label : undefined;
@@ -64,8 +55,7 @@ export function hookTitle(hook: HookEvidence): string {
     case 'hook_invocation':
       return `Hook activity · ${tool}`;
     case 'hook_decision': {
-      const verb = HOOK_DECISION_VERB[hook.decision] ?? hook.decision;
-      const base = `Hook ${verb} · ${tool}`;
+      const base = `Hook decision ${hook.decision} · ${tool} · ${hook.enforcement_mode ?? 'mode unreported'}`;
       return hook.rule_id ? `${base} — ${hook.rule_id}` : base;
     }
     case 'hook_config_drift':

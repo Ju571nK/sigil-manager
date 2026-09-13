@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { ComplianceTable } from '@/components/Fleet/ComplianceTable';
+import { Pagination } from '@/components/Fleet/Pagination';
 import { useFleetCompliance } from '@/hooks/useFleetCompliance';
 
 export const Route = createFileRoute('/_authed/fleet/compliance')({
@@ -7,16 +8,12 @@ export const Route = createFileRoute('/_authed/fleet/compliance')({
 });
 
 function ComplianceTab() {
-  const { rows, isPending, error } = useFleetCompliance();
+  const compliance = useFleetCompliance();
+  const { rows, isPending } = compliance;
   return (
     <div className="overflow-hidden rounded-md border border-border bg-bg-surface">
-      {error ? (
-        <div className="px-4 py-6 text-sm text-sev-critical">
-          Failed to load compliance: {error.message}
-        </div>
-      ) : (
-        <ComplianceTable rows={rows} isPending={isPending} />
-      )}
+      <ComplianceTable rows={rows} isPending={isPending} />
+      <Pagination {...compliance} count={rows.length} />
     </div>
   );
 }

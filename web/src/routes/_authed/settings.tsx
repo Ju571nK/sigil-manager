@@ -1,86 +1,101 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { ServiceUnavailableError } from '@/api/client';
 import { fleetHealthz } from '@/api/fleet';
 import { useFleetMeta } from '@/hooks/useFleetMeta';
 import { auditSigningSummary } from '@/lib/audit';
 import { licenseHostSummary } from '@/lib/license';
-import { cn } from '@/lib/utils';
+import { readAPIError } from '@/lib/server-status';
 
-export const Route = createFileRoute('/_authed/settings')({
-  component: SettingsPage,
-});
+export const Route = createFileRoute('/_authed/settings')({ component: SettingsPage });
 
-/**
- * Settings, per UI/UX §5.4 — deliberately minimal in v1:
- *   - sigil-server connection status + version (URL intentionally NOT shown:
- *     the API layer strips upstream URLs from every error for the same
- *     reason — the browser should never learn the upstream address).
- *   - License / host count from /v1/meta.license (§14.9.3).
- *   - Audit signing presence from /v1/meta.audit_head (§14.9.3) — reported,
- *     never verified here.
- *   - Auth: single admin user via env; no user management in v1.
- * Reuses the ['fleet','healthz'] and ['fleet','meta'] queries the TopNav and
- * alerts queue already poll — no extra request load.
- */
 function SettingsPage() {
-  const meta = useFleetMeta();
-  const healthz = useQuery({
+  const meta = useFleetMeta({ refetchInterval: 10_000, refetchOnMount: 'always' });
+  const health = useQuery({
     queryKey: ['fleet', 'healthz'],
     queryFn: fleetHealthz,
     refetchInterval: 10_000,
     refetchIntervalInBackground: false,
     retry: false,
   });
-
   const license = meta.data?.license;
-  const hosts = licenseHostSummary(license);
-
+  const busy = meta.isFetching || health.isFetching;
   return (
     <div className="flex max-w-[720px] flex-col py-4">
       <h1 className="mb-4 text-lg font-semibold text-text-primary">Settings</h1>
-
       <Section title="sigil-server">
-        <Row label="Connection">
-          <StatusDot state={serverState(healthz)} />
-          <span className="ml-1.5">{serverStateLabel(serverState(healthz))}</span>
+        <Row label="Liveness">
+          {health.isError
+            ? 'Unreachable'
+            : health.isPending
+              ? 'Checking…'
+              : health.data?.status === 'ok'
+                ? 'Reachable'
+                : 'Unexpected health status'}
         </Row>
-        <Row label="Server version">
-          {meta.data ? <code className="font-mono">{meta.data.server_version}</code> : '—'}
+        <Row label="Read API">
+          {meta.isError ? (
+            <span role="alert" className="text-sev-critical">
+              {readAPIError(meta.error)}
+            </span>
+          ) : meta.isPending ? (
+            'Checking authenticated access…'
+          ) : (
+            'Connected (authenticated)'
+          )}
         </Row>
-        <Row label="Schema version">{meta.data ? `v${meta.data.schema_version}` : '—'}</Row>
       </Section>
-
-      <Section title="License">
-        {license ? (
-          <>
-            <Row label="Hosts">{hosts}</Row>
-            <Row label="State">
-              <span
-                className={cn(
-                  license.expired || license.state === 'over_limit'
-                    ? 'text-sev-critical'
-                    : 'text-status-healthy',
-                )}
-              >
-                {license.expired ? 'expired' : license.state}
-              </span>
+      <button
+        type="button"
+        className="mb-4 self-start rounded border border-border px-3 py-1 text-xs text-accent disabled:opacity-50"
+        disabled={busy}
+        onClick={() => {
+          void meta.refetch();
+          void health.refetch();
+        }}
+      >
+        {busy ? 'Checking connection…' : 'Retry connection'}
+      </button>
+      {!meta.data ? (
+        <p role="status" className="text-sm text-text-muted">
+          {meta.isPending
+            ? 'Loading server metadata…'
+            : 'Metadata unavailable. License and audit status are unknown.'}
+        </p>
+      ) : (
+        <>
+          {meta.isError && (
+            <p role="status" className="mb-3 text-sm text-status-degraded">
+              Cached metadata — last successful fetch {new Date(meta.dataUpdatedAt).toISOString()}.
+              These values may be stale.
+            </p>
+          )}
+          <Section title={meta.isError ? 'Server metadata (cached)' : 'Server metadata'}>
+            <Row label="Server version">
+              <code>{meta.data.server_version}</code>
             </Row>
-            {license.not_after && (
-              <Row label="Valid until">
-                <span title={license.not_after}>{license.not_after.slice(0, 10)}</span>
-              </Row>
+            <Row label="Schema version">v{meta.data.schema_version}</Row>
+          </Section>
+          <Section title={meta.isError ? 'License (cached)' : 'License'}>
+            {license ? (
+              <>
+                <Row label="Hosts">{licenseHostSummary(license)}</Row>
+                <Row label="Licensed">{license.licensed ? 'yes' : 'no (reported by server)'}</Row>
+                <Row label="State">{license.expired ? 'expired' : license.state}</Row>
+                {license.not_after && (
+                  <Row label="Valid until">
+                    <time dateTime={license.not_after}>{license.not_after}</time>
+                  </Row>
+                )}
+              </>
+            ) : (
+              <Row label="License">Not reported by this server</Row>
             )}
-          </>
-        ) : (
-          <Row label="License">none (open-source server)</Row>
-        )}
-      </Section>
-
-      <Section title="Audit">
-        <Row label="Log signing">{auditSigningSummary(meta.data?.audit_head)}</Row>
-      </Section>
-
+          </Section>
+          <Section title={meta.isError ? 'Audit (cached)' : 'Audit'}>
+            <Row label="Log signing">{auditSigningSummary(meta.data.audit_head)}</Row>
+          </Section>
+        </>
+      )}
       <Section title="Auth">
         <Row label="Users">single admin user, configured via environment (v1)</Row>
       </Section>
@@ -98,47 +113,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     </section>
   );
 }
-
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <>
       <dt className="text-text-subtle">{label}</dt>
-      <dd className="text-text-body min-w-0">{children}</dd>
+      <dd className="min-w-0 break-words text-text-body">{children}</dd>
     </>
   );
-}
-
-type ServerState = 'connected' | 'rebuilding' | 'disconnected' | 'unknown';
-
-function serverState(q: { isPending: boolean; isError: boolean; error: unknown }): ServerState {
-  if (q.isPending) return 'unknown';
-  if (q.isError) {
-    return q.error instanceof ServiceUnavailableError ? 'rebuilding' : 'disconnected';
-  }
-  return 'connected';
-}
-
-function serverStateLabel(s: ServerState): string {
-  switch (s) {
-    case 'connected':
-      return 'connected';
-    case 'rebuilding':
-      return 'rebuilding index (503)';
-    case 'disconnected':
-      return 'disconnected';
-    case 'unknown':
-      return 'checking…';
-  }
-}
-
-function StatusDot({ state }: { state: ServerState }) {
-  const color =
-    state === 'connected'
-      ? 'bg-status-healthy'
-      : state === 'rebuilding'
-        ? 'bg-status-degraded'
-        : state === 'disconnected'
-          ? 'bg-sev-critical'
-          : 'bg-text-subtle';
-  return <span className={cn('inline-block h-2 w-2 rounded-full align-middle', color)} />;
 }

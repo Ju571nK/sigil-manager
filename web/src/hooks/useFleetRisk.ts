@@ -1,5 +1,6 @@
+import type { RiskPage, RiskRow } from '@/api/fleet';
 import { fleetRisk, type RiskParams } from '@/api/fleet';
-import { useFleetQuery } from './useFleetQuery';
+import { usePagedFleet } from './usePagedFleet';
 
 export interface RiskFilter {
   minBucket: 'low' | 'medium' | 'high' | 'critical';
@@ -14,13 +15,12 @@ export function useFleetRisk(filter: RiskFilter) {
     min_bucket: filter.minBucket,
     tool: filter.tool.length ? filter.tool : undefined,
   };
-  const q = useFleetQuery(['fleet', 'risk', params], () => fleetRisk(params));
-  return {
-    rows: q.data?.rows ?? [],
-    isPending: q.isPending && !q.data,
-    error: q.error,
-    isFetching: q.isFetching,
-    lastUpdatedAt: q.dataUpdatedAt,
-    refetch: q.refetch,
-  };
+  return usePagedFleet(
+    ['fleet', 'risk', params],
+    (cursor, signal) => fleetRisk({ ...params, cursor }, signal),
+    selectRows,
+    rowID,
+  );
 }
+const selectRows = (page: RiskPage) => page.rows;
+const rowID = (row: RiskRow) => row.host_id;

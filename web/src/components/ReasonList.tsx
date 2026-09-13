@@ -1,133 +1,126 @@
+import { useState } from 'react';
 import type { ReasonLike } from '@/api/fleet';
 import { humanKind, shortPath } from '@/lib/labels';
 
-/**
- * Renders AI Guard reasons (contract §14.11 variant census: no_sandbox,
- * broad_matcher, mcp_server_suspicious_launcher, instruction_file_directive,
- * the source_chain breadcrumb, …). Shared by the alerts SlideOver and the
- * host-detail AI Guard block. Open-shape: unknown kinds still render via
- * humanKind plus whichever known fields they carry.
- */
+const FIELD_LABELS: Record<string, string> = {
+  pattern: 'pattern',
+  executor: 'executor',
+  server_name: 'server',
+  server: 'server',
+  tool: 'tool',
+  servers: 'servers',
+  url: 'url',
+  command: 'command',
+  shape: 'shape',
+  evidence: 'match',
+  mechanism: 'via',
+  mode: 'mode',
+  rule: 'rule',
+  matcher: 'matcher',
+  name: 'task',
+  path: 'path',
+  script_path: 'script path',
+  hook_event: 'hook event',
+  directive_kind: 'directive',
+  snippet: 'snippet',
+  text_kind: 'hidden text',
+  baseline_hash: 'baseline hash',
+  current_hash: 'current hash',
+  list: 'replaced defaults',
+  destination: 'destination',
+  source: 'source',
+};
+
+const NOTES: Record<string, string> = {
+  mcp_tool_surface_drift:
+    'Compared with the first observed baseline, not an operator approval or signature.',
+  mcp_unapproved_new_tool:
+    'Not in the first observed baseline; this does not establish an approval violation.',
+  mcp_schema_privilege_expansion:
+    'Schema change relative to the first observed baseline; not proof of runtime execution.',
+  mcp_read_only_hint_contradiction:
+    'Metadata heuristic; not proof of a write or an approval bypass.',
+};
+
+/** All reason fields remain inspectable, including unknown additive fields. */
 export function ReasonList({ reasons }: { reasons: ReasonLike[] }) {
+  const occurrences = new Map<string, number>();
   return (
-    <ul className="space-y-0.5">
-      {reasons.map((r) => (
-        <ReasonItem key={reasonKey(r)} reason={r} />
-      ))}
+    <ul className="space-y-2">
+      {reasons.map((reason) => {
+        const identity = JSON.stringify(
+          Object.entries(reason).sort(([a], [b]) => a.localeCompare(b)),
+        );
+        const occurrence = occurrences.get(identity) ?? 0;
+        occurrences.set(identity, occurrence + 1);
+        return <ReasonItem key={`${identity}:${occurrence}`} reason={reason} />;
+      })}
     </ul>
   );
 }
 
-/** One reason row. Each AI Guard reason has a `kind` plus a few open fields
- *  (pattern/executor/server_name/url/command/shape/evidence/mechanism/…,
- *  contract §14.11) surfaced inline when present. */
-function ReasonItem({ reason: r }: { reason: ReasonLike }) {
-  const serverName = asString(r.server_name);
-  const url = asString(r.url);
-  const command = asString(r.command);
-  const chain = asStringArray(r.source_chain);
-  // §14.11 additions.
-  const shape = asString(r.shape); // mcp_server_suspicious_launcher
-  const evidence = asString(r.evidence);
-  const mechanism = asString(r.mechanism); // project_mcp_auto_enabled
-  const mode = asString(r.mode); // auto_approval_enabled
-  const rule = asString(r.rule); // permissions_allow_broad
-  const matcher = asString(r.matcher); // broad_matcher
-  const name = asString(r.name); // unattended_scheduled_task
-  const path = asString(r.path); // instruction_file_directive / *_script
-  const directiveKind = asString(r.directive_kind);
-  const snippet = asString(r.snippet);
-
+function ReasonItem({ reason }: { reason: ReasonLike }) {
+  const chain = Array.isArray(reason.source_chain)
+    ? reason.source_chain.filter((p): p is string => typeof p === 'string')
+    : [];
   return (
-    <li>
-      <span className="text-text-primary">{humanKind(r.kind)}</span>
-      {r.pattern && (
-        <span className="ml-1 text-text-muted">
-          · pattern <code className="font-mono">{r.pattern}</code>
-        </span>
-      )}
-      {r.executor && <span className="ml-1 text-text-muted">· executor {r.executor}</span>}
-      {serverName && (
-        <span className="ml-1 text-text-muted">
-          · server <code className="font-mono">{serverName}</code>
-        </span>
-      )}
-      {url && (
-        <span className="ml-1 text-text-muted">
-          · url <code className="font-mono break-all">{url}</code>
-        </span>
-      )}
-      {command && (
-        <span className="ml-1 text-text-muted">
-          · command <code className="font-mono break-all">{command}</code>
-        </span>
-      )}
-      {shape && <span className="ml-1 text-text-muted">· shape {humanKind(shape)}</span>}
-      {evidence && (
-        <span className="ml-1 text-text-muted">
-          · match <code className="font-mono break-all">{evidence}</code>
-        </span>
-      )}
-      {mechanism && <span className="ml-1 text-text-muted">· via {mechanism}</span>}
-      {mode && <span className="ml-1 text-text-muted">· mode {mode}</span>}
-      {rule && (
-        <span className="ml-1 text-text-muted">
-          · rule <code className="font-mono">{rule}</code>
-        </span>
-      )}
-      {matcher && (
-        <span className="ml-1 text-text-muted">
-          · matcher <code className="font-mono">{matcher}</code>
-        </span>
-      )}
-      {name && (
-        <span className="ml-1 text-text-muted">
-          · task <code className="font-mono">{name}</code>
-        </span>
-      )}
-      {path && (
-        <span className="ml-1 text-text-muted">
-          · <code className="font-mono">{shortPath(path)}</code>
-        </span>
-      )}
-      {directiveKind && (
-        <span className="ml-1 text-text-muted">· directive {humanKind(directiveKind)}</span>
-      )}
-      {snippet && (
-        <span className="ml-1 block text-text-muted">
-          <code className="font-mono break-all">{snippet}</code>
-        </span>
-      )}
-      {/* 3b.3.1 source-follow breadcrumb (contract §14.8). */}
+    <li className="min-w-0">
+      <span className="text-text-primary">{humanKind(reason.kind)}</span>
+      {Object.entries(reason)
+        .filter(([key, value]) => key !== 'kind' && key !== 'source_chain' && value != null)
+        .map(([key, value]) => (
+          <div key={key} className="text-text-muted">
+            <span>{FIELD_LABELS[key] ?? humanKind(key)}: </span>
+            <EvidenceValue value={value} />
+          </div>
+        ))}
       {chain.length > 0 && (
-        <span className="ml-1 block text-text-muted">
-          {chain.map((p, i) => (
-            <span key={p}>
-              {i > 0 && <span className="mx-1 text-text-subtle">→</span>}
-              <code className="font-mono">{shortPath(p)}</code>
+        <div className="text-text-muted">
+          <span>Source chain: </span>
+          {chain.map((path, index) => (
+            <span key={path}>
+              {index > 0 && <span className="mx-1">→</span>}
+              <code title={path} className="break-all">
+                {shortPath(path)}
+              </code>
             </span>
           ))}
-        </span>
+          <details>
+            <summary className="cursor-pointer">Full source paths</summary>
+            <EvidenceValue value={chain} />
+          </details>
+        </div>
       )}
+      {NOTES[reason.kind] && <p className="mt-1 text-text-muted">{NOTES[reason.kind]}</p>}
     </li>
   );
 }
 
-function reasonKey(r: ReasonLike): string {
-  const chain = asStringArray(r.source_chain).join('>');
-  // §14.11 kinds are distinguished by path/name/mechanism/rule/matcher/mode —
-  // without them two instruction_file_directive reasons for different files
-  // would collide on the same React key.
-  const extra = [r.path, r.name, r.mechanism, r.rule, r.matcher, r.mode]
-    .map((v) => asString(v) ?? '')
-    .join(':');
-  return `${r.kind}:${r.pattern ?? ''}:${r.hook_event ?? ''}:${r.executor ?? ''}:${asString(r.server_name) ?? ''}:${extra}:${chain}`;
-}
-
-function asString(v: unknown): string | undefined {
-  return typeof v === 'string' && v.length > 0 ? v : undefined;
-}
-
-function asStringArray(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+function EvidenceValue({ value }: { value: unknown }) {
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  const [copyState, setCopyState] = useState('Copy');
+  if (!text || text.length <= 96)
+    return <code className="whitespace-pre-wrap break-all font-mono">{text}</code>;
+  return (
+    <details className="inline">
+      <summary className="cursor-pointer break-all font-mono">
+        {text.slice(0, 64)}… (full value)
+      </summary>
+      <code className="block whitespace-pre-wrap break-all font-mono">{text}</code>
+      <button
+        type="button"
+        className="text-accent"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(text);
+            setCopyState('Copied');
+          } catch {
+            setCopyState('Copy unavailable — select text above');
+          }
+        }}
+      >
+        {copyState}
+      </button>
+    </details>
+  );
 }

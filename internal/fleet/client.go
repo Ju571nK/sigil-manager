@@ -336,10 +336,21 @@ type AiGuard struct {
 	ByTool map[string]ToolAiGuard `json:"by_tool"`
 }
 
+// AiGuardControl is a configuration observation, not runtime enforcement proof.
+// Value stays raw JSON to preserve false, arrays, and future value shapes.
+type AiGuardControl struct {
+	ID         string          `json:"id"`
+	SourcePath string          `json:"source_path"`
+	Setting    string          `json:"setting"`
+	Value      json.RawMessage `json:"value"`
+}
+
 // ToolAiGuard is one entry of AiGuard.ByTool. Scope is kept raw because it
 // has three variant shapes per §14.5 (user_global / project / application);
 // callers parse with DecodeScope.
 type ToolAiGuard struct {
+	// Nil = unreported; non-nil empty slice = inspected with no observations.
+	Controls        *[]AiGuardControl `json:"controls,omitempty"`
 	Score           float64           `json:"score"`
 	Bucket          string            `json:"bucket"`
 	AssessedTS      time.Time         `json:"assessed_ts"`
@@ -468,6 +479,7 @@ func (e Evidence) MarshalJSON() ([]byte, error) {
 // from this struct. Scope is kept raw because of the three variant shapes
 // in §14.5; callers use DecodeScope.
 type EvidenceAiGuard struct {
+	Controls        *[]AiGuardControl `json:"controls,omitempty"`
 	Kind            string            `json:"kind"` // always "ai_guard_risk_assessed"
 	Tool            string            `json:"tool"` // §14.5: claude_code|codex|claude_desktop|continue_dev|...
 	Scope           json.RawMessage   `json:"scope"`

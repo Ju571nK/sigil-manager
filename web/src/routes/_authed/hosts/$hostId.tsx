@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { NotFoundError } from '@/api/client';
+import { EventDetails } from '@/components/EventDetails';
 import { EventsTable } from '@/components/Fleet/EventsTable';
+import { Pagination } from '@/components/Fleet/Pagination';
 import { AiGuardByTool } from '@/components/Host/AiGuardByTool';
 import { HostHeader } from '@/components/Host/HostHeader';
 import { HostMetaCard } from '@/components/Host/HostMetaCard';
@@ -11,23 +14,26 @@ import { useFleetHost } from '@/hooks/useFleetHost';
 import { deriveComplianceStatus } from '@/lib/compliance';
 
 export const Route = createFileRoute('/_authed/hosts/$hostId')({
+  validateSearch: (raw: Record<string, unknown>): { event?: string } => ({
+    event: typeof raw.event === 'string' ? raw.event : undefined,
+  }),
   component: HostDetailPage,
 });
 
 function HostDetailPage() {
   const { hostId } = Route.useParams();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { host, isPending, error } = useFleetHost(hostId);
 
-  // Compliance status is derived from the fleet-wide compliance feed, not from
-  // host.policy_state: signature_failures_24h and version_drift live only on
-  // /fleet/compliance (F13), so HostDetail alone can't produce the status pill.
-  // We find this host's row (absent until the feed loads → pill appears then).
-  // Small-fleet assumption: the feed is fetched at limit 100; a host beyond the
-  // first page won't get a pill until a server-side ?host_id= filter exists
-  // (spec §10). Fine for current fleet sizes.
+  // Continue the shared paginated feed until this host is found.
   const compliance = useFleetCompliance();
   const row = compliance.rows.find((r) => r.host_id === hostId);
   const status = row ? deriveComplianceStatus(row) : undefined;
+  useEffect(() => {
+    if (!row && compliance.hasMore && !compliance.isFetching && !compliance.error)
+      void compliance.loadMore();
+  }, [row, compliance.hasMore, compliance.isFetching, compliance.error, compliance.loadMore]);
 
   const events = useFleetEvents({ evidenceKinds: [], hostIDs: [hostId], since: null });
 
@@ -61,6 +67,20 @@ function HostDetailPage() {
         agentVersion={host.agent_version}
         compliance={status}
       />
+      {!row && (
+        <p className="mb-3 text-xs text-text-muted">
+          {compliance.error || compliance.cursorRepeated
+            ? 'Policy status could not be loaded.'
+            : compliance.isPending || compliance.hasMore || compliance.isFetching
+              ? 'Looking up policy status…'
+              : 'No policy status reported for this host.'}{' '}
+          {(compliance.error || compliance.cursorRepeated) && (
+            <button type="button" className="text-accent" onClick={() => compliance.refetch()}>
+              Retry policy status
+            </button>
+          )}
+        </p>
+      )}
       <AiGuardByTool byTool={host.ai_guard?.by_tool ?? {}} />
       <div className="mb-4 grid gap-3 md:grid-cols-2">
         <HostMetaCard meta={host.host_meta} />
@@ -84,15 +104,20 @@ function HostDetailPage() {
           </Link>
         </div>
         <div className="overflow-hidden rounded-md border border-border bg-bg-surface">
-          {events.error ? (
-            <div className="px-4 py-6 text-sm text-sev-critical">
-              Failed to load events: {events.error.message}
-            </div>
-          ) : (
-            <EventsTable rows={events.rows} isPending={events.isPending} />
-          )}
+          <EventsTable
+            rows={events.rows}
+            isPending={events.isPending}
+            onSelect={(event) => navigate({ search: { event: event.event_id }, replace: true })}
+          />
+          <Pagination {...events} count={events.rawCount} />
         </div>
       </section>
+      <EventDetails
+        eventID={search.event ?? null}
+        hostID={hostId}
+        rows={events.rows}
+        onClose={() => navigate({ search: { event: undefined }, replace: true })}
+      />
     </div>
   );
 }
