@@ -10,16 +10,7 @@ import {
   upsertTriage,
 } from '@/api/triage';
 
-/**
- * Triage hooks for the slide-over. Reads + writes go through TanStack
- * Query so the Alerts queue re-renders after every mutation.
- *
- * The queue's `useAlerts` lives under the ['fleet','events'] key; mutations
- * here invalidate it so the joined `triage` block on each row updates after
- * Ack/Resolve/Assign. NOTE: this does NOT touch ['fleet','events-timeline']
- * (the fleet Events tab / host page) — by design, since EventsTable renders
- * no triage column. If a triage column is added there, invalidate it too.
- */
+/** Triage mutations refresh all event views, including directly linked details. */
 
 export function useTriageDetail(hostID: string | null, eventID: string | null) {
   return useQuery({
@@ -46,6 +37,8 @@ export function useUpsertTriage() {
     onSuccess: (row) => {
       qc.invalidateQueries({ queryKey: ['triage', row.host_id, row.event_id] });
       qc.invalidateQueries({ queryKey: ['fleet', 'events'] });
+      qc.invalidateQueries({ queryKey: ['fleet', 'events-timeline'] });
+      qc.invalidateQueries({ queryKey: ['fleet', 'event', row.event_id] });
     },
   });
 }

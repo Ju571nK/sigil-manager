@@ -421,6 +421,27 @@ function HookFacts({ hook }: { hook: HookEvidence }) {
   return (
     <>
       <Fact label="Tool">{humanTool(hook.agent, toolLabel)}</Fact>
+      {(
+        [
+          'peer_uid',
+          'uid',
+          'agent_session_id',
+          'tool_use_id',
+          'action_hash',
+          'expected_command_hash',
+          'observed_command_hash',
+          'last_session_activity_at',
+          'path_hash',
+          'probe_error',
+        ] as const
+      ).map((key) => {
+        const value = hook[key];
+        return value != null ? (
+          <Fact key={key} label={humanKind(key)}>
+            <code className="break-all font-mono">{String(value)}</code>
+          </Fact>
+        ) : null;
+      })}
       {hook.kind === 'hook_invocation' && (
         <>
           <Fact label="Action">{hook.action_kind}</Fact>
@@ -442,7 +463,20 @@ function HookFacts({ hook }: { hook: HookEvidence }) {
           <Fact label="Action">{hook.action_kind}</Fact>
           {hook.rule_id && <Fact label="Rule">{hook.rule_id}</Fact>}
           {hook.deny_reason && <Fact label="Deny reason">{hook.deny_reason}</Fact>}
-          <Fact label="Enforcement">{hook.enforcement_mode}</Fact>
+          <Fact label="Enforcement">
+            {hook.enforcement_mode}
+            <p className="mt-1 text-text-muted">
+              {hook.enforcement_mode === 'observe'
+                ? 'Observe mode records a decision; it does not establish that the action was blocked.'
+                : 'Reported enforcement mode; the decision is not an execution outcome.'}
+            </p>
+          </Fact>
+          {hook.action_preview && (
+            <Fact label="Preview">
+              <code className="break-all font-mono">{hook.action_preview}</code>
+            </Fact>
+          )}
+          <Fact label="Capture">{hook.capture_level}</Fact>
         </>
       )}
       {hook.kind === 'hook_config_drift' && (

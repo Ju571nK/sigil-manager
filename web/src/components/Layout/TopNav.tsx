@@ -5,6 +5,7 @@ import { logout } from '@/api/auth';
 import { ServiceUnavailableError, UnauthorizedError } from '@/api/client';
 import { fleetHealthz } from '@/api/fleet';
 import { Button } from '@/components/ui/button';
+import { useFleetMeta } from '@/hooks/useFleetMeta';
 import { cn } from '@/lib/utils';
 
 /**
@@ -12,9 +13,9 @@ import { cn } from '@/lib/utils';
  *   - Brand mark on the left (◆ sigil).
  *   - Primary nav items: Alerts (Plan 02), Fleet (Plan 03), Settings
  *     (UI/UX §5.4 minimal stub — connection/license/audit/auth read-only).
- *   - Connection-state pill on the right showing sigil-server liveness;
- *     polled every 10 s via /api/v1/fleet/healthz so the operator knows
- *     immediately when the upstream goes away.
+ *   - Connection-state pill combines liveness with the shared read-API
+ *     metadata query, so a reachable server with rejected read access is
+ *     never labeled connected.
  *   - Logout button at the far right.
  */
 export function TopNav() {
@@ -37,7 +38,14 @@ export function TopNav() {
     },
   });
 
-  const state = connectionState(healthz);
+  const meta = useFleetMeta();
+  const state: ConnectionState = healthz.isError
+    ? connectionState(healthz)
+    : meta.isError
+      ? 'read_error'
+      : meta.isPending
+        ? 'unknown'
+        : connectionState(healthz);
 
   return (
     <header className="sticky top-0 z-30 border-b border-border-subtle bg-bg-surface/80 backdrop-blur">
@@ -91,7 +99,7 @@ export function TopNav() {
   );
 }
 
-type ConnectionState = 'connected' | 'stale' | 'disconnected' | 'unknown';
+type ConnectionState = 'connected' | 'stale' | 'disconnected' | 'unknown' | 'read_error';
 
 function connectionState(q: ReturnType<typeof useQuery>): ConnectionState {
   if (q.isPending && !q.data) return 'unknown';
@@ -112,12 +120,14 @@ function ConnectionPill({ state }: { state: ConnectionState }) {
     stale: 'Stale',
     disconnected: 'Disconnected',
     unknown: '—',
+    read_error: 'Read API error',
   };
   const dotColor: Record<ConnectionState, string> = {
     connected: 'bg-status-healthy',
     stale: 'bg-status-degraded',
     disconnected: 'bg-status-down',
     unknown: 'bg-text-subtle',
+    read_error: 'bg-status-down',
   };
   return (
     <div

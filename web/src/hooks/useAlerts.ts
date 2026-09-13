@@ -1,9 +1,10 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { type EventsParams, type EventWithTriage, fleetEvents, fleetMeta } from '@/api/fleet';
+import type { EventsPage } from '@/api/fleet';
+import { type EventsParams, type EventWithTriage, fleetEvents } from '@/api/fleet';
+import { useFleetMeta } from './useFleetMeta';
+import { usePagedFleet } from './usePagedFleet';
 
 const POLL_INTERVAL_MS = 5_000; // UI/UX §7.2: 5s queue refresh
-const META_STALE_MS = 5 * 60_000; // alerts def changes rarely; cache 5 min
 
 /** Filter state owned by the Alerts page; lives in the URL (route.search). */
 export interface AlertFilter {
@@ -35,11 +36,7 @@ export const DEFAULT_FILTER: AlertFilter = {
  * the server returns rows.
  */
 export function useAlerts(filter: AlertFilter) {
-  const meta = useQuery({
-    queryKey: ['fleet', 'meta'],
-    queryFn: fleetMeta,
-    staleTime: META_STALE_MS,
-  });
+  const meta = useFleetMeta();
 
   // Hover pause: a ref + setState so onRowHover* call sites stay stable.
   const [paused, setPaused] = useState(false);
@@ -66,37 +63,36 @@ export function useAlerts(filter: AlertFilter) {
     };
   }, [meta.data, filter.minBucket, filter.since]);
 
-  const events = useQuery({
-    queryKey: ['fleet', 'events', params],
-    queryFn: () => fleetEvents(params),
-    refetchInterval: paused ? false : POLL_INTERVAL_MS,
-    refetchIntervalInBackground: false,
-    // Keep the current rows visible while a filter change refetches, instead
-    // of blanking the queue to skeleton for a fetch cycle.
-    placeholderData: keepPreviousData,
-    // Only start polling once meta has landed so we don't fire two parallel
-    // requests with different evidence_kinds.
-    enabled: !!meta.data,
-  });
+  const events = usePagedFleet(
+    ['fleet', 'events', params, filter.triageStatuses, filter.query],
+    (cursor, signal) => fleetEvents({ ...params, cursor }, signal),
+    selectEvents,
+    eventID,
+    { enabled: !!meta.data, interval: paused ? false : POLL_INTERVAL_MS },
+  );
 
   // Client-side filters: triage status + free-text query.
   const visible = useMemo(() => {
-    const all = events.data?.events ?? [];
+    const all = events.rows;
     return applyClientFilter(all, filter);
-  }, [events.data, filter]);
+  }, [events.rows, filter]);
 
   return {
+    ...events,
     rows: visible,
-    rawCount: events.data?.events.length ?? 0,
+    rawCount: events.rows.length,
     meta: meta.data,
-    isPending: meta.isPending || (events.isPending && !events.data),
+    isPending: meta.isPending || (!!meta.data && events.isPending),
     error: meta.error ?? events.error,
-    lastUpdatedAt: events.dataUpdatedAt,
+    lastUpdatedAt: events.lastUpdatedAt,
     isFetching: events.isFetching,
     isPaused: paused,
     onRowHoverEnter,
     onRowHoverLeave,
-    refetch: events.refetch,
+    refetch: async () => {
+      await meta.refetch();
+      if (meta.data) await events.refetch();
+    },
   };
 }
 
@@ -119,3 +115,6 @@ function applyClientFilter(rows: EventWithTriage[], f: AlertFilter): EventWithTr
   }
   return out;
 }
+
+const selectEvents = (page: EventsPage) => page.events;
+const eventID = (row: EventWithTriage) => `${row.host_id}:${row.event_id}`;
