@@ -1,4 +1,5 @@
 import type { ToolAiGuard } from '@/api/fleet';
+import { ObservedControls } from '@/components/ObservedControls';
 import { ReasonList } from '@/components/ReasonList';
 import { humanTool, scopeLabel } from '@/lib/labels';
 import { bucketTextColor } from '@/lib/severity';
@@ -42,9 +43,7 @@ export function AiGuardByTool({ byTool }: Props) {
           </summary>
           <div className="mt-1 space-y-0.5 pl-3">
             {quiet.map(([tool, t]) => (
-              <div key={tool}>
-                {humanTool(tool)} — {t.score.toFixed(1)}
-              </div>
+              <ToolCard key={tool} tool={tool} t={t} />
             ))}
           </div>
         </details>
@@ -77,6 +76,7 @@ function ToolCard({ tool, t }: { tool: string; t: ToolAiGuard }) {
         <span className="text-text-subtle">{scopeLabel(t.scope)}</span>
         {t.is_reattestation && <span className="text-text-subtle">· re-attested</span>}
       </div>
+      <ObservedControls controls={t.controls} assessedAt={t.assessed_ts} scope={t.scope} />
       {t.reasons && t.reasons.length > 0 && (
         <div className="mt-2 text-xs">
           <ReasonList reasons={t.reasons} />
