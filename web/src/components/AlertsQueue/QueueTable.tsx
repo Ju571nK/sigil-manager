@@ -14,6 +14,7 @@ interface Props {
   isPending?: boolean;
   /** True if the visible row set is empty because filters excluded everything. */
   filtersActive?: boolean;
+  partialResults?: boolean;
   /** When the empty state is filter-driven, this resets the filter to defaults. */
   onResetFilters?: () => void;
 }
@@ -47,6 +48,7 @@ export function QueueTable({
   onSortChange,
   isPending,
   filtersActive,
+  partialResults,
   onResetFilters,
 }: Props) {
   const sorted = useMemo(() => sortEvents(events, sort), [events, sort]);
@@ -76,7 +78,11 @@ export function QueueTable({
         {isPending ? (
           <SkeletonRows />
         ) : sorted.length === 0 ? (
-          <EmptyHint filtersActive={filtersActive} onResetFilters={onResetFilters} />
+          <EmptyHint
+            partialResults={partialResults}
+            filtersActive={filtersActive}
+            onResetFilters={onResetFilters}
+          />
         ) : (
           sorted.map((ev) => (
             <QueueRow
@@ -129,11 +135,19 @@ function Header({
 
 function EmptyHint({
   filtersActive,
+  partialResults,
   onResetFilters,
 }: {
   filtersActive?: boolean;
+  partialResults?: boolean;
   onResetFilters?: () => void;
 }) {
+  if (partialResults)
+    return (
+      <p className="p-6 text-sm text-text-muted">
+        No matching alerts in loaded results. Load more to continue searching.
+      </p>
+    );
   if (filtersActive) {
     return (
       <div className="flex h-32 flex-col items-center justify-center gap-2 text-sm text-text-subtle">

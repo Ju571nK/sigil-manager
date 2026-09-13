@@ -4,7 +4,8 @@ import type { EventWithTriage } from '@/api/fleet';
 import { FilterRow, SEARCH_INPUT_ID } from '@/components/AlertsQueue/FilterRow';
 import { QueueTable, type SortMode } from '@/components/AlertsQueue/QueueTable';
 import { ShortcutsCheatsheet } from '@/components/AlertsQueue/ShortcutsCheatsheet';
-import { SlideOver } from '@/components/AlertsQueue/SlideOver';
+import { EventDetails } from '@/components/EventDetails';
+import { Pagination } from '@/components/Fleet/Pagination';
 import { type AlertFilter, DEFAULT_FILTER, useAlerts } from '@/hooks/useAlerts';
 import { useShortcuts } from '@/hooks/useShortcuts';
 import { cn } from '@/lib/utils';
@@ -81,6 +82,7 @@ function AlertsPage() {
   const sort: SortMode = search.sort ?? 'severity_desc';
   const selectedAlertID = search.alert ?? null;
 
+  const alerts = useAlerts(filter);
   const {
     rows,
     rawCount,
@@ -91,12 +93,7 @@ function AlertsPage() {
     isPaused,
     onRowHoverEnter,
     onRowHoverLeave,
-  } = useAlerts(filter);
-
-  const selectedEvent = useMemo(
-    () => rows.find((ev) => ev.event_id === selectedAlertID) ?? null,
-    [rows, selectedAlertID],
-  );
+  } = alerts;
 
   const setSearch = useCallback(
     (next: Partial<AlertsSearch>) => {
@@ -219,7 +216,7 @@ function AlertsPage() {
 
       <div className="overflow-hidden rounded-md border border-border bg-bg-surface">
         <FilterRow filter={filter} onChange={onFilterChange} />
-        {error ? (
+        {error && rawCount === 0 ? (
           <div className="px-4 py-6 text-sm text-sev-critical">
             Failed to load alerts: {error.message}
           </div>
@@ -234,6 +231,7 @@ function AlertsPage() {
             onSortChange={onSortChange}
             isPending={isPending}
             filtersActive={isFilterActive(filter)}
+            partialResults={alerts.hasMore || alerts.cursorRepeated}
             onResetFilters={() =>
               setSearch({
                 minBucket: undefined,
@@ -246,8 +244,11 @@ function AlertsPage() {
         )}
       </div>
 
-      <SlideOver
-        event={selectedEvent}
+      <Pagination {...alerts} count={rawCount} localFilter />
+
+      <EventDetails
+        eventID={selectedAlertID}
+        rows={rows}
         onClose={closeSlideOver}
         registerFocusAssign={registerFocusAssign}
         registerFocusNote={registerFocusNote}

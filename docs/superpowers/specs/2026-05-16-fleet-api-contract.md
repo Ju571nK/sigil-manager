@@ -1321,8 +1321,9 @@ Closes consumer issue `#22`. `#190` (scan remediation hints) and `#189`
 
 Verified producer `origin/main` at `626bf42` against manager `047e777`.
 Producer clone is now `../sigil` (the historical `../anti_i` path is absent).
-This section records the audit baseline. Controls delivery (§14.12.1) is now
-implemented on `codex/observed-controls`; the reason and other UI gaps remain open.
+This section records the audit baseline. Controls, reason details, event
+investigation, pagination, and Settings error handling are implemented on
+`codex/observed-controls` (2026-09-13); see §14.12.4 for delivery scope.
 The producer working branch has an additional runtime-recovery commit; it is
 excluded from this shipped-main comparison.
 
@@ -1410,3 +1411,41 @@ MDM context is not yet on the fleet wire: retain the existing dependency
 [producer #211](https://github.com/Ju571nK/sigil/issues/211).
 Full UI findings and suggested implementation order are recorded in
 [the 2026-09-13 audit](../../reviews/2026-09-13-webui-backend-gap-audit.md).
+
+
+#### 14.12.4 Consumer WebUI delivery (2026-09-13)
+
+The requested audit items P1-2 through P1-5 are implemented without extending
+or writing to producer endpoints:
+
+- `ReasonList` displays the eleven new reason payloads and existing
+  `script_path`/`hook_event`, preserves unknown fields, disambiguates React
+  identities, and exposes full/copyable long values. MCP baseline and hint
+  findings remain explicitly advisory.
+- Fleet and host Events open the shared detail panel with URL-selected
+  `event`; Alerts retain `alert`. A single-event fetch resolves selections
+  outside loaded pages, with loading/error/retry/retention-miss states.
+  Hook titles and details report decision plus mode, never an execution
+  outcome. Sessions, hashes, previews and probe evidence are inspectable.
+- Alerts, Events, Risk and Compliance use existing opaque cursors for Load
+  more. Polling refreshes loaded pages sequentially from the first cursor;
+  IDs deduplicate boundaries. Distinct filter keys start independent first
+  pages; cache restoration can reuse previously loaded pages for a revisited
+  filter. Failed pages preserve loaded data and repeated cursors stop with an
+  incomplete-results warning. Host policy lookup advances the shared
+  Compliance feed until the host is found or results end.
+- Client-side alert status/search and event tool filters explicitly apply
+  only to loaded results. Evidence-kind, host and time filters are sent to
+  the existing API. There is no claim of server-side full-text search or a
+  transactionally frozen fleet snapshot.
+- Settings separates liveness and authenticated read access, distinguishes
+  loading/errors from successful missing metadata, labels cached values
+  after errors, and exposes retry. Missing audit head is not called disabled
+  or verified. The top navigation reflects read-API errors as well.
+
+Validation: Go tests, 59 web unit tests, lint/type checks, production build,
+and 32 Playwright tests passed. Browser tests use the production manager
+binary with Mock Fleet plus controlled HTTP fixtures (101-row paging,
+Hook deep links, stale metadata and API failures). No live producer deployment
+was exercised. Existing producer cache behavior and event retention still
+limit freshness/completeness; this delivery does not add a new snapshot API.
