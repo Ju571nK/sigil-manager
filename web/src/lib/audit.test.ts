@@ -11,12 +11,14 @@ const head: AuditHead = {
 };
 
 describe('auditSigningSummary', () => {
-  it('reports disabled when the server omits audit_head (§14.9.3)', () => {
-    expect(auditSigningSummary(null)).toBe('disabled');
-    expect(auditSigningSummary(undefined)).toBe('disabled');
+  it('distinguishes absent and null without inferring disabled signing', () => {
+    expect(auditSigningSummary(null)).toBe('no signed head available');
+    expect(auditSigningSummary(undefined)).toBe('not reported by this server');
   });
 
   it('reports enabled with seq and key id', () => {
-    expect(auditSigningSummary(head)).toBe('enabled · seq 4211 · key key-1');
+    expect(auditSigningSummary(head)).toBe(
+      'signed head reported · seq 4211 · key key-1 (not verified)',
+    );
   });
 });

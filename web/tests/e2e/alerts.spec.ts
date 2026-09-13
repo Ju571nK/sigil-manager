@@ -1,4 +1,4 @@
-import { type Page, expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 
 const ADMIN = 'admin';
 const PASSWORD = 'test-password';
@@ -141,3 +141,13 @@ test.describe('alerts queue + triage', () => {
 async function countAiGuardRows(page: Page): Promise<number> {
   return page.locator('button:has-text("AI Guard")').count();
 }
+
+test('AI Guard event detail displays observation context and values', async ({ page }) => {
+  await login(page);
+  await page.locator('button:has-text("Destructive In Hook Script")').first().click();
+  const settings = page.getByRole('region', { name: 'Observed security settings' });
+  await expect(settings.getByText('false', { exact: true })).toBeVisible();
+  await expect(settings.getByText(/not proof of runtime enforcement/)).toBeVisible();
+  await expect(settings.locator('time')).toBeVisible();
+  await page.screenshot({ path: '/tmp/sigil-manager-observed-controls-event.png', fullPage: true });
+});

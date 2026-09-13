@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
+import { Pagination } from '@/components/Fleet/Pagination';
 import { RiskTable } from '@/components/Fleet/RiskTable';
 import { DEFAULT_RISK_FILTER, type RiskFilter, useFleetRisk } from '@/hooks/useFleetRisk';
 
@@ -36,7 +37,8 @@ function RiskTab() {
     // useFleetRisk already plumbs it through; a tool picker lands in a later plan.
     tool: search.tool ?? DEFAULT_RISK_FILTER.tool,
   };
-  const { rows, isPending, error } = useFleetRisk(filter);
+  const risk = useFleetRisk(filter);
+  const { rows, isPending } = risk;
 
   const setBucket = (minBucket: RiskFilter['minBucket']) =>
     navigate({ to: '/fleet/risk', search: { ...search, minBucket }, replace: true });
@@ -61,13 +63,8 @@ function RiskTab() {
         ))}
       </div>
       <div className="overflow-hidden rounded-md border border-border bg-bg-surface">
-        {error ? (
-          <div className="px-4 py-6 text-sm text-sev-critical">
-            Failed to load risk: {error.message}
-          </div>
-        ) : (
-          <RiskTable rows={rows} isPending={isPending} />
-        )}
+        <RiskTable rows={rows} isPending={isPending} />
+        <Pagination {...risk} count={rows.length} />
       </div>
     </div>
   );

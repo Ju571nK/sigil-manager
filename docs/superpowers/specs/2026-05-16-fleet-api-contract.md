@@ -1315,3 +1315,137 @@ feature later (it must not hardcode the kind list).
 
 Closes consumer issue `#22`. `#190` (scan remediation hints) and `#189`
 (installer) shipped in the same producer window with **no** wire change.
+
+
+### 14.12 v0.8.0 consumer audit — controls and new reason payloads (2026-09-13)
+
+Verified producer `origin/main` at `626bf42` against manager `047e777`.
+Producer clone is now `../sigil` (the historical `../anti_i` path is absent).
+This section records the audit baseline. Controls, reason details, event
+investigation, pagination, and Settings error handling are implemented on
+`codex/observed-controls` (2026-09-13); see §14.12.4 for delivery scope.
+The producer working branch has an additional runtime-recovery commit; it is
+excluded from this shipped-main comparison.
+
+#### 14.12.1 Optional observed controls
+
+Producer `ff982a3` (#207 / PR #215), `6f6a296` (#199), and `789f3b6`
+(#200) expose `controls` on `ai_guard_risk_assessed` and
+`GET /v1/fleet/hosts/{host_id}.ai_guard.by_tool[tool]`.
+Source: `sigil-core/src/event.rs::AiGuardControl`,
+`sigil-server/src/fleet_index.rs::RiskEntry`, and
+`sigil-server/src/routes/fleet_hosts.rs::get_fleet_host_by_id`.
+
+| Field | Shape / meaning |
+|---|---|
+| `controls` absent or null | Not reported; do not infer disabled or insecure |
+| `controls: []` | Inspected with no active observations |
+| `controls: [{…}]` | Supported configuration restrictions observed |
+| `id` | Open, namespaced string; preserve unknown future IDs |
+| `source_path` | Source configuration file path |
+| `setting` | Observed setting name |
+| `value` | JSON value; preserve false, arrays, and unknown future shapes |
+
+These are configuration observations, **not runtime enforcement attestations**.
+They do not reduce the risk score or certify effective cloud/MDM policy.
+`is_reattestation=false` may now reflect a control change with unchanged reasons.
+Local Claude managed settings and Codex requirements restrictions have IDs such
+as `codex.configured.allow_remote_control` with `value=false`.
+
+Consumer implementation (2026-09-13): events preserve the field through
+`Evidence.Raw`; `ToolAiGuard.Controls` and `EvidenceAiGuard.Controls` use an
+optional pointer to a slice so inspected-empty survives serialization. Null
+and absent both map to unreported; JSON values retain false, arrays, objects,
+and future IDs. TypeScript types and the shared `ObservedControls` component
+render host and event assessment context, source, setting, ID, and value.
+Low-bucket tool cards expose the same details inside their disclosure.
+The existing cache shares read-only responses; no in-place mutation or deep
+copy is introduced. HTTP/cache round-trip tests, component compatibility tests,
+and production-binary browser tests cover this delivery.
+
+#### 14.12.2 Eleven additive reason kinds since §14.11
+
+All are nested reasons of `ai_guard_risk_assessed`, not new top-level evidence
+kinds. No new `AiTool` or `AiGuardScope` variants in the compared event schema.
+
+| Reason `kind` | Payload fields | Producer change |
+|---|---|---|
+| `mcp_tool_instruction_override` | `server`, `tool`, `pattern` | `9eb52c1` (#197) |
+| `mcp_tool_hidden_text` | `server`, `tool`, `text_kind` | `9eb52c1` |
+| `mcp_tool_name_shadow` | `tool`, `servers: string[]` | `9eb52c1` |
+| `mcp_tool_surface_drift` | `server`, `tool`, `baseline_hash`, `current_hash` | `296f738` (#201) |
+| `mcp_unapproved_new_tool` | `server`, `tool`, `current_hash` | `296f738` |
+| `mcp_schema_privilege_expansion` | `server`, `tool` | `296f738` |
+| `mcp_read_only_hint_contradiction` | `server`, `tool` | `296f738` |
+| `auto_mode_defaults_dropped` | `list` | `024c640` (#206) |
+| `hook_forwards_tool_calls` | `hook_event`, `destination` | `024c640` |
+| `unattended_loop_prompt` | `source` | `024c640` |
+| `standing_command_approval` | `pattern` | `024c640` |
+
+`ReasonList` currently shows generic kind names and some shared fields, but
+omits most new fields and can generate duplicate keys for distinct new reasons.
+MCP `server` is distinct from older `server_name`. A first-observed baseline
+is not an operator approval or signature. A read-only-hint contradiction is a
+heuristic, not proof of a write or bypass. Show that context with evidence.
+
+Correction to §14.11's older census: `destructive_in_inline_command` has
+`pattern`, `hook_event`, `snippet`; `destructive_in_hook_script` has `pattern`,
+`hook_event`, `script_path`, `snippet`, `source_chain`; and
+`external_script_unscanned` has `hook_event`, `script_path`. The old table's
+`path`/`executor` descriptions for these variants were inaccurate. The current
+renderer omits `script_path` and `hook_event`.
+
+#### 14.12.3 Scope and delivery boundaries
+
+The host rollup still stores the latest entry per tool, not per (tool, scope).
+Observations shown there must identify scope and assessment time; they do not
+represent every project or user on the host. This is the existing §14.3/§14.4
+limitation, not a newly introduced producer regression.
+
+Default alert kinds remain those in §14.10; the four Hook evidence kinds
+remain outside the default queue. Expose them through event investigation
+without silently changing server alert-count semantics.
+
+MDM context is not yet on the fleet wire: retain the existing dependency
+[manager #31](https://github.com/Ju571nK/sigil-manager/issues/31) /
+[producer #211](https://github.com/Ju571nK/sigil/issues/211).
+Full UI findings and suggested implementation order are recorded in
+[the 2026-09-13 audit](../../reviews/2026-09-13-webui-backend-gap-audit.md).
+
+
+#### 14.12.4 Consumer WebUI delivery (2026-09-13)
+
+The requested audit items P1-2 through P1-5 are implemented without extending
+or writing to producer endpoints:
+
+- `ReasonList` displays the eleven new reason payloads and existing
+  `script_path`/`hook_event`, preserves unknown fields, disambiguates React
+  identities, and exposes full/copyable long values. MCP baseline and hint
+  findings remain explicitly advisory.
+- Fleet and host Events open the shared detail panel with URL-selected
+  `event`; Alerts retain `alert`. A single-event fetch resolves selections
+  outside loaded pages, with loading/error/retry/retention-miss states.
+  Hook titles and details report decision plus mode, never an execution
+  outcome. Sessions, hashes, previews and probe evidence are inspectable.
+- Alerts, Events, Risk and Compliance use existing opaque cursors for Load
+  more. Polling refreshes loaded pages sequentially from the first cursor;
+  IDs deduplicate boundaries. Distinct filter keys start independent first
+  pages; cache restoration can reuse previously loaded pages for a revisited
+  filter. Failed pages preserve loaded data and repeated cursors stop with an
+  incomplete-results warning. Host policy lookup advances the shared
+  Compliance feed until the host is found or results end.
+- Client-side alert status/search and event tool filters explicitly apply
+  only to loaded results. Evidence-kind, host and time filters are sent to
+  the existing API. There is no claim of server-side full-text search or a
+  transactionally frozen fleet snapshot.
+- Settings separates liveness and authenticated read access, distinguishes
+  loading/errors from successful missing metadata, labels cached values
+  after errors, and exposes retry. Missing audit head is not called disabled
+  or verified. The top navigation reflects read-API errors as well.
+
+Validation: Go tests, 59 web unit tests, lint/type checks, production build,
+and 32 Playwright tests passed. Browser tests use the production manager
+binary with Mock Fleet plus controlled HTTP fixtures (101-row paging,
+Hook deep links, stale metadata and API failures). No live producer deployment
+was exercised. Existing producer cache behavior and event retention still
+limit freshness/completeness; this delivery does not add a new snapshot API.

@@ -1,10 +1,13 @@
+import type { EventsPage, EventWithTriage } from '@/api/fleet';
 import { type EventsParams, fleetEvents } from '@/api/fleet';
-import { useFleetQuery } from './useFleetQuery';
+import { usePagedFleet } from './usePagedFleet';
 
 export interface FleetEventsFilter {
   evidenceKinds: string[]; // empty = all kinds
   hostIDs: string[]; // empty = all hosts
   since: string | null;
+  until?: string;
+  tool?: string;
 }
 
 export const DEFAULT_FLEET_EVENTS_FILTER: FleetEventsFilter = {
@@ -19,14 +22,24 @@ export function useFleetEvents(filter: FleetEventsFilter) {
     evidence_kind: filter.evidenceKinds.length ? filter.evidenceKinds : undefined,
     host_id: filter.hostIDs.length ? filter.hostIDs : undefined,
     since: filter.since ?? undefined,
+    until: filter.until,
   };
-  const q = useFleetQuery(['fleet', 'events-timeline', params], () => fleetEvents(params));
+  const pages = usePagedFleet(
+    ['fleet', 'events-timeline', params, filter.tool],
+    (cursor, signal) => fleetEvents({ ...params, cursor }, signal),
+    selectRows,
+    rowID,
+  );
+  const tool = filter.tool?.toLowerCase();
   return {
-    rows: q.data?.events ?? [],
-    isPending: q.isPending && !q.data,
-    error: q.error,
-    isFetching: q.isFetching,
-    lastUpdatedAt: q.dataUpdatedAt,
-    refetch: q.refetch,
+    ...pages,
+    rawCount: pages.rows.length,
+    rows: tool
+      ? pages.rows.filter(
+          (row) => String(row.evidence.tool ?? row.evidence.agent ?? '').toLowerCase() === tool,
+        )
+      : pages.rows,
   };
 }
+const selectRows = (page: EventsPage) => page.events;
+const rowID = (row: EventWithTriage) => `${row.host_id}:${row.event_id}`;

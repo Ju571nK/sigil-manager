@@ -82,17 +82,27 @@ describe('hookTitle', () => {
       decision: 'deny',
       rule_id: 'no-rm-rf',
     } as HookEvidence;
-    expect(hookTitle(h)).toBe('Hook denied · Claude Code — no-rm-rf');
+    expect(hookTitle(h)).toBe('Hook decision deny · Claude Code · mode unreported — no-rm-rf');
   });
 
   it('titles an allow decision without a rule', () => {
     const h = { kind: 'hook_decision', agent: 'codex', decision: 'allow' } as HookEvidence;
-    expect(hookTitle(h)).toBe('Hook allowed · Codex');
+    expect(hookTitle(h)).toBe('Hook decision allow · Codex · mode unreported');
   });
 
   it('passes an unknown decision verb through', () => {
     const h = { kind: 'hook_decision', agent: 'codex', decision: 'shadow' } as HookEvidence;
-    expect(hookTitle(h)).toBe('Hook shadow · Codex');
+    expect(hookTitle(h)).toBe('Hook decision shadow · Codex · mode unreported');
+  });
+
+  it('includes observe mode without claiming a blocked action', () => {
+    const h = {
+      kind: 'hook_decision',
+      agent: 'codex',
+      decision: 'deny',
+      enforcement_mode: 'observe',
+    } as HookEvidence;
+    expect(hookTitle(h)).toBe('Hook decision deny · Codex · observe');
   });
 
   it('titles config drift', () => {

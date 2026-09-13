@@ -89,8 +89,18 @@ export interface Evidence {
   [key: string]: unknown;
 }
 
+/** Supported configuration observation; never proof of runtime enforcement. */
+export interface AiGuardControl {
+  id: string;
+  source_path: string;
+  setting: string;
+  value: unknown;
+}
+
 /** Decoded `ai_guard_risk_assessed` payload — Plan 02's main render path. */
 export interface AiGuardEvidence extends Evidence {
+  /** Absent/null = unreported; [] = inspected with no active observations. */
+  controls?: AiGuardControl[] | null;
   kind: 'ai_guard_risk_assessed';
   tool:
     | 'claude_code'
@@ -276,13 +286,13 @@ export interface EventsParams {
   min_ai_guard_bucket?: 'low' | 'medium' | 'high' | 'critical';
 }
 
-export function fleetEvents(params: EventsParams = {}): Promise<EventsPage> {
+export function fleetEvents(params: EventsParams = {}, signal?: AbortSignal): Promise<EventsPage> {
   const search = buildQuery(params);
-  return api<EventsPage>(`/fleet/events${search ? `?${search}` : ''}`);
+  return api<EventsPage>(`/fleet/events${search ? `?${search}` : ''}`, { signal });
 }
 
-export function fleetEventByID(eventID: string): Promise<EventWithTriage> {
-  return api<EventWithTriage>(`/fleet/events/${encodeURIComponent(eventID)}`);
+export function fleetEventByID(eventID: string, signal?: AbortSignal): Promise<EventWithTriage> {
+  return api<EventWithTriage>(`/fleet/events/${encodeURIComponent(eventID)}`, { signal });
 }
 
 // -----------------------------------------------------------------------------
@@ -319,14 +329,14 @@ export interface RiskParams {
   min_bucket?: 'low' | 'medium' | 'high' | 'critical';
 }
 
-export function fleetRisk(params: RiskParams = {}): Promise<RiskPage> {
+export function fleetRisk(params: RiskParams = {}, signal?: AbortSignal): Promise<RiskPage> {
   const q = new URLSearchParams();
   if (params.cursor) q.set('cursor', params.cursor);
   if (typeof params.limit === 'number') q.set('limit', String(params.limit));
   if (params.tool?.length) q.set('tool', params.tool.join(','));
   if (params.min_bucket) q.set('min_bucket', params.min_bucket);
   const s = q.toString();
-  return api<RiskPage>(`/fleet/risk${s ? `?${s}` : ''}`);
+  return api<RiskPage>(`/fleet/risk${s ? `?${s}` : ''}`, { signal });
 }
 
 // -----------------------------------------------------------------------------
@@ -355,12 +365,15 @@ export interface ComplianceParams {
   limit?: number;
 }
 
-export function fleetCompliance(params: ComplianceParams = {}): Promise<CompliancePage> {
+export function fleetCompliance(
+  params: ComplianceParams = {},
+  signal?: AbortSignal,
+): Promise<CompliancePage> {
   const q = new URLSearchParams();
   if (params.cursor) q.set('cursor', params.cursor);
   if (typeof params.limit === 'number') q.set('limit', String(params.limit));
   const s = q.toString();
-  return api<CompliancePage>(`/fleet/compliance${s ? `?${s}` : ''}`);
+  return api<CompliancePage>(`/fleet/compliance${s ? `?${s}` : ''}`, { signal });
 }
 
 // -----------------------------------------------------------------------------
@@ -405,6 +418,7 @@ export interface AgentHealth {
 /** One per-tool AI Guard rollup (§5.4 ai_guard.by_tool). Same reason/scope
  * shapes as AiGuardEvidence, so it reuses ReasonLike/Scope. */
 export interface ToolAiGuard {
+  controls?: AiGuardControl[] | null;
   score: number;
   bucket: 'low' | 'medium' | 'high' | 'critical' | string;
   assessed_ts: string;

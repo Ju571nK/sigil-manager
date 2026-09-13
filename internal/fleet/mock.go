@@ -531,7 +531,7 @@ func (m *MockClient) buildHosts() {
 				scope := json.RawMessage(`{"kind":"user_global"}`)
 				byTool[tool] = ToolAiGuard{
 					Score: tr.Score, Bucket: tr.Bucket, AssessedTS: tr.AssessedTS,
-					IsReattestation: false, Scope: scope, Reasons: nil,
+					IsReattestation: false, Scope: scope, Reasons: nil, Controls: mockControls(tool),
 				}
 			}
 			aiGuard = &AiGuard{ByTool: byTool}
@@ -584,6 +584,15 @@ func (m *MockClient) buildEvents() {
 		}
 		if err := json.Unmarshal(ev.Evidence.Raw, &probe); err == nil {
 			ev.Evidence.Kind = probe.Kind
+		}
+		if ag, err := ev.Evidence.AsAiGuard(); err == nil && ag != nil {
+			if controls := mockControls(ag.Tool); controls != nil {
+				var payload map[string]json.RawMessage
+				if err := json.Unmarshal(ev.Evidence.Raw, &payload); err == nil {
+					payload["controls"], _ = json.Marshal(controls)
+					ev.Evidence.Raw, _ = json.Marshal(payload)
+				}
+			}
 		}
 		m.events = append(m.events, ev)
 	}
@@ -694,3 +703,20 @@ var (
 	_ Client = (*MockClient)(nil)
 	_ Client = (*HTTPClient)(nil)
 )
+
+// mockControls covers reported, inspected-empty, and legacy reporting states.
+func mockControls(tool string) *[]AiGuardControl {
+	switch tool {
+	case "claude_code":
+		return &[]AiGuardControl{{ID: "claude_code.configured.allowManagedHooksOnly", SourcePath: "/Library/Application Support/ClaudeCode/managed-settings.json", Setting: "allowManagedHooksOnly", Value: json.RawMessage(`true`)}}
+	case "codex":
+		return &[]AiGuardControl{
+			{ID: "codex.configured.allow_remote_control", SourcePath: "/etc/codex/requirements.toml", Setting: "allow_remote_control", Value: json.RawMessage(`false`)},
+			{ID: "codex.configured.allowed_sandbox_modes", SourcePath: "/etc/codex/requirements.toml", Setting: "allowed_sandbox_modes", Value: json.RawMessage(`["read-only","workspace-write"]`)},
+		}
+	case "continue_dev":
+		return &[]AiGuardControl{}
+	default:
+		return nil
+	}
+}

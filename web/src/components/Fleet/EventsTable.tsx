@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { type EventWithTriage, extractAiGuard } from '@/api/fleet';
+import { type EventWithTriage, extractAiGuard, extractHook, extractToggleDrift } from '@/api/fleet';
 import { SkeletonRows } from '@/components/Fleet/SkeletonRows';
 import { humanKind, humanTool } from '@/lib/labels';
 import { relativeAge } from '@/lib/time';
@@ -8,10 +8,11 @@ import { cn } from '@/lib/utils';
 interface Props {
   rows: EventWithTriage[];
   isPending: boolean;
+  onSelect: (event: EventWithTriage) => void;
 }
 
 /** Fleet-wide event timeline (UI/UX §5.2 Events tab). No triage columns. */
-export function EventsTable({ rows, isPending }: Props) {
+export function EventsTable({ rows, isPending, onSelect }: Props) {
   if (isPending) {
     return <SkeletonRows count={6} />;
   }
@@ -36,8 +37,20 @@ export function EventsTable({ rows, isPending }: Props) {
       <tbody>
         {rows.map((ev) => {
           const ag = extractAiGuard(ev);
+          const hook = extractHook(ev);
+          const drift = extractToggleDrift(ev);
+          const tool = ag
+            ? humanTool(ag.tool, ag.tool_label)
+            : hook
+              ? humanTool(
+                  hook.agent,
+                  hook.kind === 'hook_invocation' ? hook.other_label : undefined,
+                )
+              : drift
+                ? humanTool(drift.tool, drift.tool_label)
+                : '—';
           return (
-            <tr key={ev.event_id} className="border-b border-border-subtle">
+            <tr key={`${ev.host_id}:${ev.event_id}`} className="border-b border-border-subtle">
               <td className="px-3 py-2">
                 {/* Contract treats unknown/future severities as warn, not info
                     (api/fleet.ts) — so only an explicit "info" is the low dot. */}
@@ -52,7 +65,16 @@ export function EventsTable({ rows, isPending }: Props) {
                 />
               </td>
               <td className="px-3 py-2 font-mono text-text-muted">{relativeAge(ev.ts)}</td>
-              <td className="px-3 py-2 text-text-primary">{humanKind(ev.evidence?.kind ?? '')}</td>
+              <td className="px-3 py-2 text-text-primary">
+                <button
+                  type="button"
+                  onClick={() => onSelect(ev)}
+                  className="text-left text-accent hover:underline"
+                  aria-label={`Inspect ${humanKind(ev.evidence?.kind ?? '')} ${ev.event_id}`}
+                >
+                  {humanKind(ev.evidence?.kind ?? '')}
+                </button>
+              </td>
               <td className="px-3 py-2 font-mono text-text-muted" title={ev.host_id}>
                 <Link
                   to="/hosts/$hostId"
@@ -62,9 +84,7 @@ export function EventsTable({ rows, isPending }: Props) {
                   {ev.host_id.split('-')[0]}
                 </Link>
               </td>
-              <td className="px-3 py-2 text-text-muted">
-                {ag ? humanTool(ag.tool, ag.tool_label) : '—'}
-              </td>
+              <td className="px-3 py-2 text-text-muted">{tool}</td>
             </tr>
           );
         })}
