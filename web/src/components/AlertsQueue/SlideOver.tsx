@@ -10,6 +10,7 @@ import {
   type ToggleDriftEvidence,
 } from '@/api/fleet';
 import type { TriageStatus } from '@/api/triage';
+import { ObservedControls } from '@/components/ObservedControls';
 import { ReasonList } from '@/components/ReasonList';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -203,6 +204,7 @@ function SlideOverBody({
           </div>
         )}
         <FactGrid event={event} ag={ag} hook={hook} drift={drift} />
+        {ag && <ObservedControls controls={ag.controls} assessedAt={event.ts} scope={ag.scope} />}
 
         {/* Actions */}
         <section>

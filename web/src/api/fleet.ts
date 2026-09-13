@@ -89,8 +89,18 @@ export interface Evidence {
   [key: string]: unknown;
 }
 
+/** Supported configuration observation; never proof of runtime enforcement. */
+export interface AiGuardControl {
+  id: string;
+  source_path: string;
+  setting: string;
+  value: unknown;
+}
+
 /** Decoded `ai_guard_risk_assessed` payload — Plan 02's main render path. */
 export interface AiGuardEvidence extends Evidence {
+  /** Absent/null = unreported; [] = inspected with no active observations. */
+  controls?: AiGuardControl[] | null;
   kind: 'ai_guard_risk_assessed';
   tool:
     | 'claude_code'
@@ -405,6 +415,7 @@ export interface AgentHealth {
 /** One per-tool AI Guard rollup (§5.4 ai_guard.by_tool). Same reason/scope
  * shapes as AiGuardEvidence, so it reuses ReasonLike/Scope. */
 export interface ToolAiGuard {
+  controls?: AiGuardControl[] | null;
   score: number;
   bucket: 'low' | 'medium' | 'high' | 'critical' | string;
   assessed_ts: string;

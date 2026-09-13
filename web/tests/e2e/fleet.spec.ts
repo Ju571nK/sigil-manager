@@ -1,4 +1,4 @@
-import { type Page, expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 
 const ADMIN = 'admin';
 const PASSWORD = 'test-password';
@@ -118,4 +118,34 @@ test.describe('fleet pages', () => {
     await expect(page.getByText(/No AI Guard assessments yet/i)).toBeVisible({ timeout: 5_000 });
     await expect(page.getByText(/No host metadata reported yet/i)).toBeVisible();
   });
+});
+
+test('observed controls survive the host API and remain inspectable at low risk', async ({
+  page,
+}) => {
+  await login(page);
+  const path = '/api/v1/fleet/hosts/5a7c3e91-aaaa-bbbb-cccc-222222222222';
+  const response = await page.request.get(path);
+  expect(response.ok()).toBeTruthy();
+  const host = await response.json();
+  expect(host.ai_guard.by_tool.codex.controls[0].value).toBe(false);
+  await page.goto('/hosts/5a7c3e91-aaaa-bbbb-cccc-222222222222');
+  const settings = page.getByRole('region', { name: 'Observed security settings' });
+  await expect(settings.getByText('false', { exact: true })).toBeVisible();
+  await expect(settings.getByText('/etc/codex/requirements.toml').first()).toBeVisible();
+  await expect(
+    settings.getByText('["read-only","workspace-write"]', { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({ path: '/tmp/sigil-manager-observed-controls-host.png', fullPage: true });
+
+  // Same observation on a quiet tool must remain accessible by keyboard.
+  host.ai_guard.by_tool.codex.bucket = 'low';
+  host.ai_guard.by_tool.codex.score = 0;
+  await page.route(`**${path}`, (route) => route.fulfill({ json: host }));
+  await page.reload();
+  const summary = page.locator('summary').filter({ hasText: 'Low (1)' });
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  await expect(settings.getByText('false', { exact: true })).toBeVisible();
+  await expect(page.getByText('low 0.00', { exact: true })).toBeVisible();
 });
