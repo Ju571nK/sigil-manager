@@ -23,11 +23,12 @@ type AuthConfig struct {
 }
 
 // Server owns the `/api/v1` handlers and their dependencies. All routes
-// except `POST /api/v1/auth/login` are gated by [RequireAuth].
+// except login, method discovery and OIDC callbacks are gated by [RequireAuth].
 type Server struct {
 	Fleet  fleet.Client
 	Triage *triage.Repo
 	Signer *auth.Signer
+	OIDC   *auth.OIDC
 	Auth   AuthConfig
 }
 
@@ -56,6 +57,10 @@ func (s *Server) Routes() chi.Router {
 	// exempt) to slow online brute force on top of the bcrypt + fail-delay.
 	loginLimiter := newRateLimiter(10, time.Minute)
 	r.With(loginLimiter.middleware).Post("/auth/login", s.handleLogin)
+
+	r.Get("/auth/methods", s.handleAuthMethods)
+	r.With(loginLimiter.middleware).Get("/auth/oidc/start", s.handleOIDCStart)
+	r.With(loginLimiter.middleware).Get("/auth/oidc/callback", s.handleOIDCCallback)
 
 	// Authenticated.
 	r.Group(func(r chi.Router) {

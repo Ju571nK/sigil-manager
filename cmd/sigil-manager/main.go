@@ -54,12 +54,17 @@ func run() error {
 		return err
 	}
 
+	oidcProvider, err := auth.NewOIDC(context.Background(), cfg.OIDC)
+	if err != nil {
+		return err
+	}
 	fleetClient := fleet.NewFromConfig(cfg)
 
 	v1Server := &v1.Server{
 		Fleet:  fleetClient,
 		Triage: repo,
 		Signer: signer,
+		OIDC:   oidcProvider,
 		Auth: v1.AuthConfig{
 			AdminUsername:       cfg.AdminUsername,
 			AdminPasswordBcrypt: cfg.AdminPasswordBcrypt,

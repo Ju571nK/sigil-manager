@@ -278,7 +278,12 @@ When `sigil-server` hasn't returned fresh data:
 
 v1: **single admin user** via username/password (bcrypt hash + JWT session, 12-hour expiry, no refresh token). No user management UI. Credentials set via env var on container startup.
 
-Deferred to v1.1: single OAuth provider (GitHub). Deferred to never (this repo): SAML, SCIM, multi-user RBAC — these are `sigil-cloud` concerns.
+2026-09-23 update: optional **single configurable OIDC provider** replaces the
+GitHub-specific follow-up. Local admin login remains recovery access; explicitly
+admitted provider subjects receive the same console permissions. No user
+management or RBAC is added. See [OIDC operations](../../operations/oidc.md) for
+configuration, exact admission and session/revocation limitations.
+SAML, SCIM and multi-user RBAC remain outside this repository's scope.
 
 ## 10. Brand mark
 

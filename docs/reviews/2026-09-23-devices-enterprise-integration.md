@@ -1,5 +1,13 @@
 # Devices and internal deployment integration
 
+## Follow-up implementation
+
+The follow-up adds the generic single-provider OIDC login described in
+[OIDC operations](../operations/oidc.md), including explicit subject admission.
+The proposal below records the original Devices design; its statements that
+login is unimplemented are historical. Directory/inventory connectors remain
+unimplemented, and live vendor compatibility is not yet verified.
+
 ## Implemented scope
 
 Fleet → Devices consumes the existing fleet hosts list (§5.3), including hosts

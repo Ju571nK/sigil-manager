@@ -8,17 +8,21 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Ju571nK/sigil-manager/internal/auth"
 )
 
 // Config is the resolved runtime configuration for a sigil-manager process.
 // Constructed via Load(). All fields are immutable after construction.
 type Config struct {
+	OIDC auth.OIDCConfig
 	// Server
 	ListenAddr string // LISTEN_ADDR, default ":8080"
 
@@ -81,6 +85,16 @@ func Load() (*Config, error) {
 		AdminPasswordBcrypt: strings.TrimSpace(os.Getenv("ADMIN_PASSWORD_BCRYPT")),
 
 		JWTSecret: []byte(strings.TrimSpace(os.Getenv("JWT_SECRET"))),
+	}
+
+	c.OIDC = auth.OIDCConfig{Issuer: strings.TrimSpace(os.Getenv("OIDC_ISSUER_URL")), ClientID: strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID")), ClientSecret: os.Getenv("OIDC_CLIENT_SECRET"), RedirectURL: strings.TrimSpace(os.Getenv("OIDC_REDIRECT_URL"))}
+	if raw := os.Getenv("OIDC_ALLOWED_SUBJECTS"); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &c.OIDC.AllowedSubjects); err != nil {
+			return nil, errors.New("OIDC_ALLOWED_SUBJECTS must be a JSON array of subject strings")
+		}
+	}
+	if err := c.OIDC.Validate(); err != nil {
+		return nil, err
 	}
 
 	ttlHours, err := intDefault("JWT_TTL_HOURS", 12)
