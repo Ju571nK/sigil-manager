@@ -443,7 +443,7 @@ export interface CurrentRisk {
 }
 
 /** Body of GET /fleet/hosts/{host_id} (§5.4): HostSummary + 4 nullable blocks. */
-export interface HostDetail {
+export interface HostSummary {
   host_id: string;
   hostname: string | null;
   agent_version: string;
@@ -451,6 +451,9 @@ export interface HostDetail {
   status: 'healthy' | 'stale' | 'disconnected' | string;
   current_risk: CurrentRisk | null;
   open_event_counts_24h: Record<string, number>;
+}
+
+export interface HostDetail extends HostSummary {
   host_meta: HostMeta | null;
   policy_state: PolicyState | null;
   agent_health: AgentHealth | null;
@@ -459,6 +462,28 @@ export interface HostDetail {
 
 export function fleetHost(hostId: string): Promise<HostDetail> {
   return api<HostDetail>(`/fleet/hosts/${encodeURIComponent(hostId)}`);
+}
+
+export interface HostsPage {
+  hosts: HostSummary[] | null;
+  next_cursor: string | null;
+  total_estimated: number;
+}
+
+export interface HostsParams {
+  cursor?: string;
+  limit?: number;
+  status?: string;
+  sort?: 'last_seen' | 'risk' | 'host_id';
+}
+
+export function fleetHosts(p: HostsParams, signal?: AbortSignal): Promise<HostsPage> {
+  const query = new URLSearchParams();
+  if (p.cursor) query.set('cursor', p.cursor);
+  if (p.limit !== undefined) query.set('limit', String(p.limit));
+  if (p.status) query.set('status', p.status);
+  if (p.sort) query.set('sort', p.sort);
+  return api<HostsPage>(`/fleet/hosts?${query}`, { signal });
 }
 
 // -----------------------------------------------------------------------------

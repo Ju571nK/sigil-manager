@@ -142,6 +142,28 @@ func (s *Server) handleFleetCompliance(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, page)
 }
 
+// handleFleetHosts includes hosts without AI Guard assessments (§5.3).
+func (s *Server) handleFleetHosts(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	p := fleet.HostsParams{Cursor: q.Get("cursor"), Status: splitComma(q.Get("status")), Bucket: splitComma(q.Get("bucket")), Sort: q.Get("sort")}
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_query", "limit must be an integer")
+			return
+		}
+		p.Limit = n
+	}
+	page, err := withFleetRetry(r.Context(), func(ctx context.Context) (*fleet.HostsPage, error) {
+		return s.Fleet.FleetHosts(ctx, p)
+	})
+	if err != nil {
+		mapFleetErr(w, err)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, page)
+}
+
 // handleFleetHostByID is a pass-through to FleetClient.FleetHostByID (§5.4).
 // A 404 (host_id not in the server's in-memory index) maps via mapFleetErr.
 func (s *Server) handleFleetHostByID(w http.ResponseWriter, r *http.Request) {
