@@ -70,6 +70,11 @@ func (s *Signer) TTL() time.Duration { return s.ttl }
 // Sign issues a JWT for `subject` (the admin username). Returns the
 // compact-serialized token, the absolute expiry, and any sign error.
 func (s *Signer) Sign(subject string) (string, time.Time, error) {
+	return s.SignUntil(subject, time.Time{})
+}
+
+// SignUntil caps the local session at the external identity token expiry.
+func (s *Signer) SignUntil(subject string, deadline time.Time) (string, time.Time, error) {
 	if subject == "" {
 		return "", time.Time{}, fmt.Errorf("auth: subject required")
 	}
@@ -78,6 +83,12 @@ func (s *Signer) Sign(subject string) (string, time.Time, error) {
 	}
 	now := s.now()
 	exp := now.Add(s.ttl)
+	if !deadline.IsZero() && deadline.Before(exp) {
+		exp = deadline
+	}
+	if !exp.After(now) {
+		return "", time.Time{}, ErrExpiredToken
+	}
 	claims := jwt.RegisteredClaims{
 		Issuer:    defaultIssuer,
 		Subject:   subject,

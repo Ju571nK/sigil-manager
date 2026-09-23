@@ -29,3 +29,7 @@ export function logout(): Promise<{ status: string }> {
 export function me(): Promise<MeResponse> {
   return api<MeResponse>('/auth/me');
 }
+
+export function authMethods(): Promise<{ local: boolean; oidc: boolean }> {
+  return api('/auth/methods');
+}

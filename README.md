@@ -88,6 +88,12 @@ The process refuses to start if any **required** var is missing.
 | `FLEET_POLL_INTERVAL_SECONDS` | no | `5` | How often the SPA polls `/fleet/events` (UI/UX §7.2) |
 | `SIGIL_INSECURE_COOKIE` | no | unset | Set to `1` for local-dev only to clear the cookie `Secure` flag |
 
+Optional organization login uses a single generic OIDC provider. Configure
+`OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL` and
+`OIDC_ALLOWED_SUBJECTS` together. Local admin access remains available.
+See [OIDC setup and recovery](docs/operations/oidc.md) for subject admission,
+provider compatibility and session limitations.
+
 ### Generating secrets
 
 ```bash
