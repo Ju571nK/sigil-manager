@@ -70,6 +70,7 @@ func (s *Server) Routes() chi.Router {
 		r.Get("/fleet/events/{event_id}", s.handleFleetEventByID)
 		r.Get("/fleet/risk", s.handleFleetRisk)
 		r.Get("/fleet/compliance", s.handleFleetCompliance)
+		r.Get("/fleet/hosts", s.handleFleetHosts)
 		r.Get("/fleet/hosts/{host_id}", s.handleFleetHostByID)
 
 		r.Post("/triage/upsert", s.handleTriageUpsert)

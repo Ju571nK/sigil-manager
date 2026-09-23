@@ -517,3 +517,32 @@ func TestFleet_Risk_RetriesTransient503(t *testing.T) {
 	assert.Equal(t, http.StatusOK, code, "a transient 503 must be retried, not surfaced")
 	assert.Equal(t, 2, flaky.riskCalls, "expected one failed attempt + one retry")
 }
+
+func TestFleetHosts_AuthenticationAndPagination(t *testing.T) {
+	h := newHarness(t)
+	code, _, _ := h.do(http.MethodGet, "/fleet/hosts", nil, nil)
+	require.Equal(t, http.StatusUnauthorized, code)
+	cookie := h.loginCookie()
+	code, body, _ := h.do(http.MethodGet, "/fleet/hosts?limit=1&sort=host_id", nil, cookie)
+	require.Equal(t, http.StatusOK, code)
+	var first fleet.HostsPage
+	require.NoError(t, json.Unmarshal(body, &first))
+	require.Len(t, first.Hosts, 1)
+	require.NotNil(t, first.NextCursor)
+	code, body, _ = h.do(http.MethodGet, "/fleet/hosts?limit=1&sort=host_id&cursor="+*first.NextCursor, nil, cookie)
+	require.Equal(t, http.StatusOK, code)
+	var second fleet.HostsPage
+	require.NoError(t, json.Unmarshal(body, &second))
+	require.Len(t, second.Hosts, 1)
+	require.NotEqual(t, first.Hosts[0].HostID, second.Hosts[0].HostID)
+	code, body, _ = h.do(http.MethodGet, "/fleet/hosts?status=disconnected", nil, cookie)
+	require.Equal(t, http.StatusOK, code)
+	var filtered fleet.HostsPage
+	require.NoError(t, json.Unmarshal(body, &filtered))
+	require.NotEmpty(t, filtered.Hosts)
+	for _, host := range filtered.Hosts {
+		require.Equal(t, "disconnected", host.Status)
+	}
+	code, _, _ = h.do(http.MethodGet, "/fleet/hosts?limit=abc", nil, cookie)
+	require.Equal(t, http.StatusBadRequest, code)
+}
