@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 
 const TABS = [
+  { to: '/fleet/devices', label: 'Devices' },
   { to: '/fleet/risk', label: 'Risk' },
   { to: '/fleet/events', label: 'Events' },
   { to: '/fleet/compliance', label: 'Compliance' },
