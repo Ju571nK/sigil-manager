@@ -18,6 +18,45 @@ reported and may be stale. No producer wire change is needed for this view.
 
 ## Corporate identity requirements under consideration
 
+### Vendor-neutral requirement (2026-09-23 clarification)
+
+Supporting diverse vendors is a product requirement. Vendor names in this document
+are examples, not an allowlist. Integrations must be selected by protocol and
+capability, not hard-coded brand checks or vendor-specific device table columns.
+
+- **Login:** configure a standards-based OIDC provider using issuer discovery,
+  client credentials and explicit admission/claim mapping. Keep provider-specific
+  options in adapters/configuration rather than the session or Devices model.
+  One configured provider per deployment remains the initial scope; compatibility
+  with many providers does not require simultaneous federation in the manager.
+- **Directory and inventory:** model identity directories, device management and
+  asset inventories as independent source types. A company can use different
+  vendors for login, user records and device records. Their adapters belong on
+  the producer side; manager consumes a shared read contract.
+- **Common records:** propose an opaque source-instance ID, source type, external
+  object ID, Sigil host binding, optional normalized attributes, provenance,
+  synchronization time and capability/status fields. Source-instance IDs must
+  distinguish two deployments of the same vendor. These are design requirements,
+  not fields already available on the wire.
+- **Mixed sources:** preserve all source references; require explicit attribute
+  precedence and expose conflicting or ambiguous bindings. Never silently join
+  records by hostname/email or overwrite one source with another. A directory
+  group is not automatically a policy group or an authorization grant.
+- **Extensibility:** unsupported attributes remain unknown. Show controls only
+  when the server advertises the corresponding capability. Adding a vendor
+  should require an adapter and contract fixtures, not a redesign of Devices.
+- **Verification:** test a generic OIDC implementation plus independently
+  configured providers, non-default claims, missing attributes, source conflicts
+  and interrupted synchronization before claiming interoperability. Publish an
+  explicit tested compatibility matrix; protocol support alone is not proof of
+  successful integration with every vendor.
+
+Direct LDAP or other vendor APIs, and standards such as SCIM where applicable,
+are candidates for separately scoped adapters; this requirement does not claim
+they are implemented. Actual connectors and the producer schema need a follow-up
+contract agreement. Operator login versus directory enrichment scope is still
+unresolved; this clarification establishes vendor neutrality for both designs.
+
 The requested Okta, Microsoft and LDAP support has two independent purposes:
 console operator authentication, and enrichment of devices with owners/departments.
 The usage clarification is pending; neither integration is implemented by this
