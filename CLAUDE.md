@@ -11,7 +11,6 @@ on `feat/plan-02-foundation-and-alerts`. See
 for current task state.
 
 Source-of-truth docs:
-- `sigil-strategy.md` — productization strategy + scope decisions
 - `docs/superpowers/specs/2026-05-16-fleet-api-contract.md` — v1.0 fleet API
   consumed from `sigil-server`, locked against producer Phase 3b.4 plus the
   additive §14 notes for 3b.6 / 3b.6.1 / 3b.6.2
@@ -76,13 +75,11 @@ and reopens the alignment problems the v1.0 contract closed.
 ## What this repo IS
 
 `sigil-manager` is the **self-hostable, open** web console for the Sigil
-AI-SPM project. It is the middle tier of a three-tier structure:
+AI-SPM project. The project includes:
 
 1. `Ju571nK/sigil` — OSS per-host daemon (Apache-2.0, public, already exists)
 2. **`Ju571nK/sigil-manager` — this repo.** Self-hostable web console for fleet
-   visibility. Apache-2.0 (or BSL/source-available — decision pending). Public.
-3. `Ju571nK/sigil-cloud` — Multi-tenant hosted SaaS. **Commercial, private.**
-   Does not yet exist.
+   visibility. Apache-2.0, public.
 
 The manager is a console a user runs next to their own `sigil-server` via
 `docker run`. It reads fleet evidence from `sigil-server` and renders dashboards
@@ -91,21 +88,19 @@ It is **read-only** against `sigil-server`.
 
 ## What this repo MUST NOT contain
 
-These belong in `sigil-cloud` (the private commercial repo), not here. Pushing
-them into this repo creates license-isolation problems and leaks IP that is
-meant to be the SaaS moat:
+The following features are out of scope for this self-hostable console:
 
-- Billing, payments, Stripe/Lemon Squeezy/Paddle integration
+- Billing and payment processing
 - Multi-tenancy, tenant routing, row-level security for tenants, per-tenant schemas
-- Usage metering, invoicing, dunning, refunds
+- Usage metering and invoicing
 - SSO beyond a single basic provider (no SAML, no enterprise identity federation here)
 - Admin / CS panels with impersonation
 - Compliance evidence pipeline (SOC 2, GDPR DPA), per-tenant quotas, abuse detection
 - Customer accounts with org/team hierarchies, API token rotation/scoping/revocation
 
 Auth in this repo should be **at most** simple username/password or a single
-basic SSO. Anything more sophisticated is a signal you're building `sigil-cloud`
-features in the wrong repo — stop and confirm with the user.
+basic SSO. More sophisticated authentication is out of scope for this repo —
+stop and confirm with the user before expanding it.
 
 ## Cross-repo dependencies
 
