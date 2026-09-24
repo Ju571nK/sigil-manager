@@ -88,6 +88,12 @@ The process refuses to start if any **required** var is missing.
 | `FLEET_POLL_INTERVAL_SECONDS` | no | `5` | How often the SPA polls `/fleet/events` (UI/UX §7.2) |
 | `SIGIL_INSECURE_COOKIE` | no | unset | Set to `1` for local-dev only to clear the cookie `Secure` flag |
 
+Optional organization login uses a single generic OIDC provider. Configure
+`OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL` and
+`OIDC_ALLOWED_SUBJECTS` together. Local admin access remains available.
+See [OIDC setup and recovery](docs/operations/oidc.md) for subject admission,
+provider compatibility and session limitations.
+
 ### Generating secrets
 
 ```bash
@@ -164,11 +170,10 @@ Read-only, 20s polling, null-tolerant for disconnected hosts.
 ## What this repo is NOT
 
 This is the OSS, self-hostable console only. Multi-tenancy, billing,
-SSO/SAML, and compliance pipelines live in the (private) `sigil-cloud`
-repo. See [`CLAUDE.md`](CLAUDE.md) and `sigil-strategy.md` for the
-scope boundaries.
+enterprise SSO/SAML, and compliance pipelines are out of scope for this repo.
+See [`CLAUDE.md`](CLAUDE.md) for the scope boundaries.
 
 ## License
 
-TBD between Apache-2.0 and BSL/source-available. Decision pending; see
-`sigil-strategy.md` for context.
+Licensed under the [Apache License, Version 2.0](LICENSE).
+See [NOTICE](NOTICE) for attribution.

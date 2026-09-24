@@ -18,7 +18,7 @@ func NewRouter(v1Server *apiv1.Server) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
+	r.Use(accessLog)
 	r.Use(middleware.Recoverer)
 	r.Use(securityHeaders)
 
@@ -36,4 +36,13 @@ func NewRouter(v1Server *apiv1.Server) http.Handler {
 	r.Handle("/*", spa)
 
 	return r
+}
+
+// accessLog deliberately omits query strings: OIDC callbacks contain codes/state.
+func accessLog(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		defer func() { log.Printf("http: method=%s path=%q status=%d", r.Method, r.URL.Path, ww.Status()) }()
+		next.ServeHTTP(ww, r)
+	})
 }

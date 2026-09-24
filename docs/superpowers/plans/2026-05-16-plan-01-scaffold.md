@@ -1834,13 +1834,13 @@ process. In prod, Go serves both from one process on one port.
 ## What this repo is NOT
 
 This is the OSS, self-hostable console only. Multi-tenancy, billing,
-SSO/SAML, and compliance pipelines live in the (private) `sigil-cloud`
-repo. See `CLAUDE.md` and `sigil-strategy.md` for the scope boundaries.
+enterprise SSO/SAML, and compliance pipelines are out of scope for this repo.
+See [`CLAUDE.md`](CLAUDE.md) for the scope boundaries.
 
 ## License
 
-TBD between Apache-2.0 and BSL/source-available. Decision pending; see
-`sigil-strategy.md` for context.
+Licensed under the [Apache License, Version 2.0](LICENSE).
+See [NOTICE](NOTICE) for attribution.
 ````
 
 - [ ] **Step 2: Commit**

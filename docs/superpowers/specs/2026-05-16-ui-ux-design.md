@@ -4,15 +4,15 @@
 - **Date**: 2026-05-16 (initial) · 2026-05-18 (sync with contract F7 / F13 / §14.5)
 - **Owner**: Justin Kwon
 - **Source**: Brainstorming session 2026-05-16 (Visual Companion + terminal)
-- **Implements**: Strategy decisions in `sigil-strategy.md`
+- **Scope**: Self-hostable console; boundaries defined in `CLAUDE.md`
 - **Consumed by**: `docs/superpowers/plans/2026-05-18-plan-02-foundation-and-alerts-queue.md`
 - **Wire contract**: `docs/superpowers/specs/2026-05-16-fleet-api-contract.md` (v1.0)
 
 ## 1. Context
 
 `sigil-manager` is the self-hostable web console layer of the Sigil AI-SPM
-project (middle tier between `sigil` daemon and `sigil-cloud` SaaS). This
-document captures the UI/UX direction for v1.
+project, consuming fleet data from `sigil-server`. This document captures
+the UI/UX direction for v1.
 
 The brainstorm targeted two user requirements:
 1. **Professional as a security solution** — looks like a real security tool, not a SaaS demo.
@@ -278,7 +278,12 @@ When `sigil-server` hasn't returned fresh data:
 
 v1: **single admin user** via username/password (bcrypt hash + JWT session, 12-hour expiry, no refresh token). No user management UI. Credentials set via env var on container startup.
 
-Deferred to v1.1: single OAuth provider (GitHub). Deferred to never (this repo): SAML, SCIM, multi-user RBAC — these are `sigil-cloud` concerns.
+2026-09-23 update: optional **single configurable OIDC provider** replaces the
+GitHub-specific follow-up. Local admin login remains recovery access; explicitly
+admitted provider subjects receive the same console permissions. No user
+management or RBAC is added. See [OIDC operations](../../operations/oidc.md) for
+configuration, exact admission and session/revocation limitations.
+SAML, SCIM and multi-user RBAC remain outside this repository's scope.
 
 ## 10. Brand mark
 
@@ -301,7 +306,8 @@ Explicit YAGNI list — anything here is **not** in v1 and pushing it back into 
 - i18n / 다국어 (v1 is English-only; Korean evaluated for v1.5+)
 - AI-assisted alert classification, auto-prioritization
 
-The first six explicitly belong to `sigil-cloud` per `sigil-strategy.md` and must not be implemented in this repo.
+The first six are out of scope for this repo and must not be implemented here.
+See `CLAUDE.md` for the repository scope guardrails.
 
 ## 12. Deferred to implementation plan
 
@@ -317,6 +323,5 @@ Decisions intentionally left for the `writing-plans` skill, not this brainstorm:
 
 ## 13. Cross-references
 
-- `sigil-strategy.md` — productization strategy; the "read-only against sigil-server" wording (both in the tier table and in the "What sigil-manager is" section) was updated during this brainstorm to reflect D5.
 - `CLAUDE.md` — repo guardrails; scope boundaries here align with the "MUST NOT contain" list there.
 - `sigil-server` Phase 3b.4 — fleet aggregation API on the `sigil` repo defines the upstream data shape this console consumes. UI prototyping can proceed against mock data while 3b.4 is in flight, but the data contract from 3b.4 must be stable before this console is wired to a real server.

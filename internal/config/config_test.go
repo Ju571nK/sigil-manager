@@ -255,3 +255,24 @@ func TestLoad_WhitespaceTrimmedFromStrings(t *testing.T) {
 	assert.Equal(t, "http://localhost:9090", c.SigilServerBaseURL)
 	assert.Equal(t, "admin", c.AdminUsername)
 }
+
+func TestOIDCEnvironment(t *testing.T) {
+	t.Setenv("OIDC_ISSUER_URL", "https://identity.example/realm")
+	t.Setenv("OIDC_CLIENT_ID", "console")
+	t.Setenv("OIDC_CLIENT_SECRET", "secret")
+	t.Setenv("OIDC_REDIRECT_URL", "https://console.example/api/v1/auth/oidc/callback")
+	t.Setenv("OIDC_ALLOWED_SUBJECTS", `["employee-1"]`)
+	t.Setenv("MOCK_FLEET", "1")
+	t.Setenv("ADMIN_USERNAME", "admin")
+	t.Setenv("ADMIN_PASSWORD_BCRYPT", validBcryptHash)
+	t.Setenv("JWT_SECRET", validJWTSecret)
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"employee-1"}, cfg.OIDC.AllowedSubjects)
+	t.Setenv("OIDC_ALLOWED_SUBJECTS", `employee-1`)
+	_, err = Load()
+	require.ErrorContains(t, err, "JSON array")
+	t.Setenv("OIDC_ALLOWED_SUBJECTS", `[]`)
+	_, err = Load()
+	require.ErrorContains(t, err, "OIDC_ALLOWED_SUBJECTS")
+}
