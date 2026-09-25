@@ -1,5 +1,7 @@
 # sigil-manager
 
+![License](https://img.shields.io/badge/license-Apache%202.0-blue)
+
 Self-hostable web console for the [Sigil](https://github.com/Ju571nK/sigil)
 AI-SPM project. Reads fleet data from `sigil-server`; owns local triage
 state (acknowledge / assign / resolve / notes) for SOC analyst workflow.
