@@ -83,6 +83,78 @@ func TestHTTP_Meta_SendsBearer(t *testing.T) {
 	assert.Equal(t, "Bearer "+testToken, got.Auth)
 }
 
+func metaBody(extra map[string]any) map[string]any {
+	b := map[string]any{
+		"server_version": "0.9.0",
+		"schema_version": 1,
+		"ts":             "2026-10-09T12:00:00Z",
+		"alerts_definition_default": map[string]any{
+			"evidence_kinds":   []string{"ai_guard_risk_assessed"},
+			"ai_guard_buckets": []string{"high", "critical"},
+			"additional_kinds": []string{},
+		},
+	}
+	for k, v := range extra {
+		b[k] = v
+	}
+	return b
+}
+
+func TestHTTP_Meta_FleetBlock(t *testing.T) {
+	c, _ := stubServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, 200, metaBody(map[string]any{
+			"fleet": map[string]any{"active_host_count": 42, "active_window_days": 7},
+		}))
+	})
+	out, err := c.Meta(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, out.Fleet)
+	assert.Equal(t, ActiveHosts{ActiveHostCount: 42, ActiveWindowDays: 7}, *out.Fleet)
+}
+
+// sigil-server 0.8.x reports the host count inside `license`.
+func TestHTTP_Meta_LegacyLicenseBlockMapsToFleet(t *testing.T) {
+	c, _ := stubServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, 200, metaBody(map[string]any{
+			"license": map[string]any{
+				"state": "ok", "licensed": false, "expired": false,
+				"effective_max_hosts": 200, "current_host_count": 12,
+				"active_window_days": 30, "customer_id": nil, "license_id": nil,
+			},
+		}))
+	})
+	out, err := c.Meta(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, out.Fleet)
+	assert.Equal(t, ActiveHosts{ActiveHostCount: 12, ActiveWindowDays: 30}, *out.Fleet)
+
+	// The legacy object itself is not re-emitted to the SPA.
+	enc, err := json.Marshal(out)
+	require.NoError(t, err)
+	assert.NotContains(t, string(enc), `"license"`)
+}
+
+func TestHTTP_Meta_FleetWinsOverLegacyLicense(t *testing.T) {
+	c, _ := stubServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, 200, metaBody(map[string]any{
+			"fleet":   map[string]any{"active_host_count": 3, "active_window_days": 7},
+			"license": map[string]any{"current_host_count": 99, "active_window_days": 30},
+		}))
+	})
+	out, err := c.Meta(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, ActiveHosts{ActiveHostCount: 3, ActiveWindowDays: 7}, *out.Fleet)
+}
+
+func TestHTTP_Meta_NoFleetNoLicense(t *testing.T) {
+	c, _ := stubServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, 200, metaBody(nil))
+	})
+	out, err := c.Meta(context.Background())
+	require.NoError(t, err)
+	assert.Nil(t, out.Fleet)
+}
+
 func TestHTTP_EventsQueryParams(t *testing.T) {
 	c, got := stubServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, 200, map[string]any{"events": []any{}, "next_cursor": nil})

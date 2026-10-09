@@ -221,7 +221,7 @@ for (const scenario of [
     await expect(page.locator('header').getByText('Read API error', { exact: true })).toBeVisible();
     await expect(page.getByRole('alert').filter({ hasText: scenario.message })).toBeVisible();
     await expect(
-      page.getByText('Metadata unavailable. License and audit status are unknown.'),
+      page.getByText('Metadata unavailable. Fleet size and audit status are unknown.'),
     ).toBeVisible();
     await expect(page.getByText('none (open-source server)', { exact: true })).toHaveCount(0);
     await expect(page.getByText('disabled', { exact: true })).toHaveCount(0);

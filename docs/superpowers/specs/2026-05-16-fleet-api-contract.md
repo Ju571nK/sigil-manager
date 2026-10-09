@@ -193,9 +193,9 @@ returns non-200.
 }
 ```
 
-`license` and `audit_head` are additive top-level fields shipped post-lock
-(sigil `bc9f000` / `2b5d61c`); see §14.9.3 for shapes and nullability.
-They do **not** bump `schema_version`.
+`audit_head` is an additive top-level field shipped post-lock (sigil
+`2b5d61c`); see §14.9.3. `fleet` replaced the earlier `license` field in
+sigil v0.9.0; see §14.13. Neither bumps `schema_version`.
 
 `alerts_definition_default` is the **producer's recommended set**. The
 consumer (`sigil-manager`) starts from this and may add/remove kinds in
@@ -1120,6 +1120,9 @@ don't assume.
 
 #### 14.9.3 `/v1/meta` — `license` + `audit_head` top-level fields
 
+> **Superseded for `license`:** sigil v0.9.0 removed `license` and added
+> `fleet`; see §14.13. `audit_head` below is unchanged.
+
 Two new top-level keys on `GET /v1/meta` (§5.2). Both are additive and do
 **not** bump `schema_version`.
 
@@ -1449,3 +1452,39 @@ binary with Mock Fleet plus controlled HTTP fixtures (101-row paging,
 Hook deep links, stale metadata and API failures). No live producer deployment
 was exercised. Existing producer cache behavior and event retention still
 limit freshness/completeness; this delivery does not add a new snapshot API.
+
+### 14.13 v0.9.0 — `/v1/meta.fleet` replaces `license` (sigil main `f14bd86`, release v0.9.0, 2026-10-09)
+
+Producer PR #233 removed the license verification module. `GET /v1/meta` no
+longer returns `license`; it returns a `fleet` object computed from the same
+active-host index (`sigil-server/src/routes/meta.rs`):
+
+```json
+"fleet": { "active_host_count": 12, "active_window_days": 7 }
+```
+
+| Field | Shape / meaning |
+|---|---|
+| `fleet` absent | Server reports no fleet size (pre-0.9.0 with no `license` either) |
+| `active_host_count` | `u32`, hosts seen within the window |
+| `active_window_days` | `u32`, server config `active_window_days` (default 7) |
+
+`audit_head` is unchanged in shape. Existing audit chains are no longer
+appended to, so their head stops advancing on 0.9.0 servers. `schema_version`
+is not bumped.
+
+Consumer implementation (2026-10-09):
+- `fleet.Meta` drops `License`/`LicenseStatus` and adds `Fleet *ActiveHosts`,
+  passed through verbatim.
+- `HTTPClient.Meta` maps a 0.8.x `license.current_host_count` /
+  `license.active_window_days` into `Fleet` when `fleet` is absent, so the
+  console shows fleet size against either producer version. `fleet` wins when
+  both are present. The legacy object is not re-emitted to the SPA.
+- The Fleet header shows "N active hosts · last D days"; Settings shows a
+  Fleet section. The license banner and the Settings license section are
+  removed; nothing in the console renders limits or expiry any more.
+
+Validation: Go tests (incl. fleet, legacy mapping, precedence, absent),
+golangci-lint, web unit tests, lint, production build, and 37 Playwright
+tests (one new: header count from Mock Fleet). No live 0.9.0 server was
+exercised.

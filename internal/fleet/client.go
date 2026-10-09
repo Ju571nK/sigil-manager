@@ -173,31 +173,25 @@ type Healthz struct {
 // Response: /v1/meta (§5.2)
 // -----------------------------------------------------------------------------
 
-// Meta is the body of `GET /v1/meta` (§5.2). License and AuditHead are
-// additive post-lock fields (§14.9.3); older servers omit them, so they are
-// pointers that stay nil when absent and are passed through verbatim.
+// Meta is the body of `GET /v1/meta` (§5.2). Fleet and AuditHead are
+// additive post-lock fields (§14.9.3, §14.13); servers that do not report
+// them leave the pointers nil, and the console passes them through verbatim.
 type Meta struct {
 	ServerVersion           string                  `json:"server_version"`
 	SchemaVersion           int                     `json:"schema_version"`
 	TS                      time.Time               `json:"ts"`
 	AlertsDefinitionDefault AlertsDefinitionDefault `json:"alerts_definition_default"`
-	License                 *LicenseStatus          `json:"license,omitempty"`
+	Fleet                   *ActiveHosts            `json:"fleet,omitempty"`
 	AuditHead               *AuditHead              `json:"audit_head,omitempty"`
 }
 
-// LicenseStatus is the optional license block on `/v1/meta` (contract
-// §14.9.3, producer sigil `bc9f000`). Nil on open-source / older servers.
-// The console renders it read-only; enforcement lives in the producer.
-type LicenseStatus struct {
-	State             string     `json:"state"` // "ok" | "over_limit"
-	Licensed          bool       `json:"licensed"`
-	Expired           bool       `json:"expired"`
-	EffectiveMaxHosts int        `json:"effective_max_hosts"`
-	CurrentHostCount  int        `json:"current_host_count"`
-	ActiveWindowDays  int        `json:"active_window_days"`
-	CustomerID        *string    `json:"customer_id"`
-	LicenseID         *string    `json:"license_id"`
-	NotAfter          *time.Time `json:"not_after"`
+// ActiveHosts is the active-host count reported on `/v1/meta` (contract
+// §14.13, producer sigil v0.9.0). For sigil-server 0.8.x and earlier, which
+// report the same two numbers inside a `license` object instead, the HTTP
+// client fills this in from that object (see [HTTPClient.Meta]).
+type ActiveHosts struct {
+	ActiveHostCount  int `json:"active_host_count"`
+	ActiveWindowDays int `json:"active_window_days"`
 }
 
 // AuditHead is the optional signed head of the audit log on `/v1/meta`

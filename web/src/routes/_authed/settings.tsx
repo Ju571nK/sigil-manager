@@ -3,7 +3,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { fleetHealthz } from '@/api/fleet';
 import { useFleetMeta } from '@/hooks/useFleetMeta';
 import { auditSigningSummary } from '@/lib/audit';
-import { licenseHostSummary } from '@/lib/license';
 import { readAPIError } from '@/lib/server-status';
 
 export const Route = createFileRoute('/_authed/settings')({ component: SettingsPage });
@@ -17,7 +16,7 @@ function SettingsPage() {
     refetchIntervalInBackground: false,
     retry: false,
   });
-  const license = meta.data?.license;
+  const fleet = meta.data?.fleet;
   const busy = meta.isFetching || health.isFetching;
   return (
     <div className="flex max-w-[720px] flex-col py-4">
@@ -59,7 +58,7 @@ function SettingsPage() {
         <p role="status" className="text-sm text-text-muted">
           {meta.isPending
             ? 'Loading server metadata…'
-            : 'Metadata unavailable. License and audit status are unknown.'}
+            : 'Metadata unavailable. Fleet size and audit status are unknown.'}
         </p>
       ) : (
         <>
@@ -75,20 +74,16 @@ function SettingsPage() {
             </Row>
             <Row label="Schema version">v{meta.data.schema_version}</Row>
           </Section>
-          <Section title={meta.isError ? 'License (cached)' : 'License'}>
-            {license ? (
+          <Section title={meta.isError ? 'Fleet (cached)' : 'Fleet'}>
+            {fleet ? (
               <>
-                <Row label="Hosts">{licenseHostSummary(license)}</Row>
-                <Row label="Licensed">{license.licensed ? 'yes' : 'no (reported by server)'}</Row>
-                <Row label="State">{license.expired ? 'expired' : license.state}</Row>
-                {license.not_after && (
-                  <Row label="Valid until">
-                    <time dateTime={license.not_after}>{license.not_after}</time>
-                  </Row>
-                )}
+                <Row label="Active hosts">{fleet.active_host_count}</Row>
+                <Row label="Active window">
+                  {fleet.active_window_days} {fleet.active_window_days === 1 ? 'day' : 'days'}
+                </Row>
               </>
             ) : (
-              <Row label="License">Not reported by this server</Row>
+              <Row label="Active hosts">Not reported by this server</Row>
             )}
           </Section>
           <Section title={meta.isError ? 'Audit (cached)' : 'Audit'}>

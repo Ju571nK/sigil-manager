@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 import { FleetTabs } from '@/components/Fleet/FleetTabs';
 import { useFleetMeta } from '@/hooks/useFleetMeta';
-import { licenseHostSummary } from '@/lib/license';
+import { activeHostSummary } from '@/lib/fleet-size';
 
 export const Route = createFileRoute('/_authed/fleet')({
   component: FleetLayout,
@@ -9,7 +9,7 @@ export const Route = createFileRoute('/_authed/fleet')({
 
 function FleetLayout() {
   const meta = useFleetMeta();
-  const hosts = licenseHostSummary(meta.data?.license);
+  const hosts = activeHostSummary(meta.data?.fleet);
   return (
     <div className="flex flex-col py-4">
       <div className="mb-3 flex items-baseline gap-3">

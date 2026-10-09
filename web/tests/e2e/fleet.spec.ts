@@ -28,6 +28,13 @@ test.describe('fleet pages', () => {
     });
   });
 
+  test('fleet header shows the active host count from /v1/meta', async ({ page }) => {
+    await login(page);
+    await page.goto('/fleet');
+    // Mock /v1/meta reports fleet { active_host_count: 5, active_window_days: 30 }.
+    await expect(page.getByText('5 active hosts · last 30 days')).toBeVisible({ timeout: 5_000 });
+  });
+
   test('bare /fleet redirects to /fleet/risk', async ({ page }) => {
     await login(page);
     await page.goto('/fleet');
