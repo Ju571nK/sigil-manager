@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
  * Top navigation strip. Per UI/UX §4:
  *   - Brand mark on the left (◆ sigil).
  *   - Primary nav items: Alerts (Plan 02), Fleet (Plan 03), Settings
- *     (UI/UX §5.4 minimal stub — connection/license/audit/auth read-only).
+ *     (UI/UX §5.4 minimal stub — connection/fleet/audit/auth read-only).
  *   - Connection-state pill combines liveness with the shared read-API
  *     metadata query, so a reachable server with rejected read access is
  *     never labeled connected.

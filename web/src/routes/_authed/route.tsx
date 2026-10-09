@@ -2,7 +2,6 @@ import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 import { me } from '@/api/auth';
 import { SessionExpiredError, UnauthorizedError } from '@/api/client';
 import { ConnectionBanner } from '@/components/Layout/ConnectionBanner';
-import { LicenseBanner } from '@/components/Layout/LicenseBanner';
 import { PageShell } from '@/components/Layout/PageShell';
 import { TopNav } from '@/components/Layout/TopNav';
 
@@ -40,7 +39,6 @@ function AuthedLayout() {
     <div className="min-h-screen bg-bg-page text-text-body">
       <TopNav />
       <ConnectionBanner />
-      <LicenseBanner />
       <main>
         <PageShell>
           <Outlet />

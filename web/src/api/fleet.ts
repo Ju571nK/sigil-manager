@@ -16,19 +16,13 @@ export interface HealthzResponse {
 }
 
 /**
- * Optional license block on `/v1/meta` (contract §14.9.3). Absent on
- * open-source / older servers, so `MetaResponse.license` is optional.
+ * Active-host count on `/v1/meta` (contract §14.13). The Go layer also fills
+ * this in for sigil-server 0.8.x, which reports the same numbers elsewhere;
+ * it is absent only when the server reports neither.
  */
-export interface LicenseStatus {
-  state: 'ok' | 'over_limit' | string;
-  licensed: boolean;
-  expired: boolean;
-  effective_max_hosts: number;
-  current_host_count: number;
+export interface FleetSummary {
+  active_host_count: number;
   active_window_days: number;
-  customer_id: string | null;
-  license_id: string | null;
-  not_after: string | null;
 }
 
 /** Optional signed audit-log head on `/v1/meta` (§14.9.3); opaque to the console. */
@@ -49,7 +43,7 @@ export interface MetaResponse {
     ai_guard_buckets: string[];
     additional_kinds: string[];
   };
-  license?: LicenseStatus;
+  fleet?: FleetSummary;
   audit_head?: AuditHead | null;
 }
 

@@ -46,7 +46,34 @@ func (c *HTTPClient) Healthz(ctx context.Context) (*Healthz, error) {
 
 // Meta implements [Client.Meta].
 func (c *HTTPClient) Meta(ctx context.Context) (*Meta, error) {
-	return doJSON[Meta](ctx, c, http.MethodGet, "/v1/meta", nil, true)
+	w, err := doJSON[metaWire](ctx, c, http.MethodGet, "/v1/meta", nil, true)
+	if err != nil {
+		return nil, err
+	}
+	return w.toMeta(), nil
+}
+
+// metaWire is the `/v1/meta` body as received. sigil-server 0.8.x and
+// earlier have no `fleet` object but report the same two numbers inside
+// `license`; v0.9.0 removed `license` (contract §14.13). The rest of that
+// object is not used by the console and is dropped.
+type metaWire struct {
+	Meta
+	LegacyLicense *struct {
+		CurrentHostCount int `json:"current_host_count"`
+		ActiveWindowDays int `json:"active_window_days"`
+	} `json:"license,omitempty"`
+}
+
+func (w *metaWire) toMeta() *Meta {
+	m := w.Meta
+	if m.Fleet == nil && w.LegacyLicense != nil {
+		m.Fleet = &ActiveHosts{
+			ActiveHostCount:  w.LegacyLicense.CurrentHostCount,
+			ActiveWindowDays: w.LegacyLicense.ActiveWindowDays,
+		}
+	}
+	return &m
 }
 
 // PolicyMeta implements [Client.PolicyMeta].
