@@ -21,9 +21,7 @@ test.describe('alerts queue + triage', () => {
     // The Mock fixture seeds >= 5 high/critical AI Guard events.
     const rows = page.getByRole('button', { pressed: false }).filter({ hasText: /critical|high/i });
     // Wait for the table to actually paint (poll-driven render).
-    await expect(rows.first()).toBeVisible({ timeout: 5_000 });
-    const count = await rows.count();
-    expect(count).toBeGreaterThanOrEqual(3);
+    await expect.poll(() => rows.count(), { timeout: 5_000 }).toBeGreaterThanOrEqual(3);
   });
 
   test('opening a row reveals the slide-over with the FactGrid', async ({ page }) => {
